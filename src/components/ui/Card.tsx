@@ -1,55 +1,51 @@
-import { ReactNode } from 'react'
+import { HTMLAttributes, forwardRef } from 'react'
+import { cn } from '@/lib/utils'
 
-interface CardProps {
-  children: ReactNode
-  className?: string
-  padding?: 'none' | 'sm' | 'md' | 'lg'
-  shadow?: boolean
-}
+export interface CardProps extends HTMLAttributes<HTMLDivElement> {}
 
-export const Card = ({
-  children,
-  className = '',
-  padding = 'md',
-  shadow = true,
-}: CardProps) => {
-  const paddingClasses = {
-    none: '',
-    sm: 'p-4',
-    md: 'p-6',
-    lg: 'p-8',
-  }
-
-  const shadowClass = shadow ? 'shadow-md hover:shadow-lg' : ''
-
-  return (
-    <div
-      className={`
-        bg-white rounded-lg transition-shadow duration-200
-        ${paddingClasses[padding]}
-        ${shadowClass}
-        ${className}
-      `}
-    >
-      {children}
-    </div>
-  )
-}
-
-interface CardHeaderProps {
-  title: string
-  subtitle?: string
-  action?: ReactNode
-}
-
-export const CardHeader = ({ title, subtitle, action }: CardHeaderProps) => {
-  return (
-    <div className="flex items-center justify-between mb-4">
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-        {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
+export const Card = forwardRef<HTMLDivElement, CardProps>(
+  ({ className, children, ...props }, ref) => {
+    return (
+      <div
+        ref={ref}
+        className={cn(
+          'bg-white rounded-card p-[30px] mb-6 shadow-card',
+          className
+        )}
+        {...props}
+      >
+        {children}
       </div>
-      {action && <div>{action}</div>}
-    </div>
-  )
+    )
+  }
+)
+
+Card.displayName = 'Card'
+
+export interface CardTitleProps extends HTMLAttributes<HTMLHeadingElement> {
+  subtitle?: string
 }
+
+export const CardTitle = forwardRef<HTMLHeadingElement, CardTitleProps>(
+  ({ className, subtitle, children, ...props }, ref) => {
+    return (
+      <>
+        <h2
+          ref={ref}
+          className={cn(
+            'text-2xl font-bold text-secondary-900 mb-5 pb-4 border-b-2 border-gray-100',
+            className
+          )}
+          {...props}
+        >
+          {children}
+        </h2>
+        {subtitle && (
+          <p className="text-sm text-text-secondary -mt-2 mb-4">{subtitle}</p>
+        )}
+      </>
+    )
+  }
+)
+
+CardTitle.displayName = 'CardTitle'
