@@ -125,6 +125,7 @@ export default {
       backgroundImage: {
         'gradient-primary': 'linear-gradient(135deg, #183157 0%, #0DB5A6 100%)',
         'gradient-sidebar': 'linear-gradient(180deg, #183157 0%, #0e1f3a 100%)',
+        'gradient-admin': 'linear-gradient(180deg, #183157 0%, #0e1f3a 100%)',
         'gradient-avatar': 'linear-gradient(135deg, #0DB5A6, #183157)',
         'gradient-danger': 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
         'gradient-success': 'linear-gradient(135deg, #28a745 0%, #218838 100%)',
