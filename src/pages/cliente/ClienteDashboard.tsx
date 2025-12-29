@@ -39,13 +39,16 @@ export const ClienteDashboard = () => {
   return (
     <div>
       {/* Welcome Banner */}
-      <div className="bg-gradient-primary text-white p-12 rounded-card text-center mb-10">
-        <h1 className="text-5xl font-extrabold mb-2.5">
-          Olá, {firstName}! 👋
-        </h1>
-        <p className="text-lg opacity-90">
-          Bem-vindo ao seu portal de saúde. Aqui você pode gerenciar seus agendamentos, acessar guias e muito mais.
-        </p>
+      <div className="bg-gradient-primary text-white p-10 sm:p-14 rounded-card text-center mb-10 shadow-card-hover overflow-hidden relative">
+        <div className="absolute inset-0 bg-white/5 backdrop-blur-sm" />
+        <div className="relative z-10">
+          <h1 className="text-4xl sm:text-5xl font-extrabold mb-3 tracking-tight">
+            Olá, {firstName}! 👋
+          </h1>
+          <p className="text-base sm:text-lg opacity-95 max-w-2xl mx-auto">
+            Bem-vindo ao seu portal de saúde. Aqui você pode gerenciar seus agendamentos, acessar guias e muito mais.
+          </p>
+        </div>
       </div>
 
       {/* Carousel */}
@@ -55,36 +58,39 @@ export const ClienteDashboard = () => {
       />
 
       {/* Info Section */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-10">
-        <div className="bg-white rounded-card p-6 shadow-card text-center">
-          <div className="text-4xl mb-3">🏥</div>
-          <h3 className="font-bold text-lg text-secondary-900 mb-2">
-            Rede Credenciada
-          </h3>
-          <p className="text-sm text-text-secondary">
-            Acesso a diversos estabelecimentos de saúde credenciados em sua região
-          </p>
-        </div>
-
-        <div className="bg-white rounded-card p-6 shadow-card text-center">
-          <div className="text-4xl mb-3">⚡</div>
-          <h3 className="font-bold text-lg text-secondary-900 mb-2">
-            Atendimento Rápido
-          </h3>
-          <p className="text-sm text-text-secondary">
-            Agendamento simplificado e confirmação em até 24 horas úteis
-          </p>
-        </div>
-
-        <div className="bg-white rounded-card p-6 shadow-card text-center">
-          <div className="text-4xl mb-3">💳</div>
-          <h3 className="font-bold text-lg text-secondary-900 mb-2">
-            Coparticipação Facilitada
-          </h3>
-          <p className="text-sm text-text-secondary">
-            Pagamento online de coparticipação de forma segura e prática
-          </p>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-10">
+        {[
+          {
+            icon: '🏥',
+            title: 'Rede Credenciada',
+            description: 'Acesso a diversos estabelecimentos de saúde credenciados em sua região',
+          },
+          {
+            icon: '⚡',
+            title: 'Atendimento Rápido',
+            description: 'Agendamento simplificado e confirmação em até 24 horas úteis',
+          },
+          {
+            icon: '💳',
+            title: 'Coparticipação Facilitada',
+            description: 'Pagamento online de coparticipação de forma segura e prática',
+          },
+        ].map((item, index) => (
+          <div
+            key={index}
+            className="bg-white rounded-card p-6 shadow-card text-center hover:shadow-card-hover transition-all duration-250 border border-gray-100/50 group"
+          >
+            <div className="text-5xl mb-4 transition-transform duration-250 group-hover:scale-110">
+              {item.icon}
+            </div>
+            <h3 className="font-bold text-lg text-secondary-900 mb-2.5">
+              {item.title}
+            </h3>
+            <p className="text-sm text-text-secondary leading-relaxed">
+              {item.description}
+            </p>
+          </div>
+        ))}
       </div>
     </div>
   )

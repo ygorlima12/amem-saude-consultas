@@ -15,19 +15,21 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         className={cn(
           // Base styles
-          'rounded-button font-semibold cursor-pointer transition-all duration-300',
+          'rounded-button font-semibold cursor-pointer transition-all duration-250',
           'disabled:opacity-50 disabled:cursor-not-allowed',
+          'focus:outline-none focus:ring-2 focus:ring-offset-2',
+          'active:scale-[0.98]',
           // Size styles
           {
             'px-4 py-2 text-sm': size === 'sm',
-            'px-7 py-3 text-[15px]': size === 'md',
-            'px-9 py-4 text-base': size === 'lg',
+            'px-6 py-2.5 text-[15px]': size === 'md',
+            'px-8 py-3.5 text-base': size === 'lg',
           },
           // Variant styles
           {
-            'bg-primary text-white hover:bg-primary-hover hover:-translate-y-0.5': variant === 'primary',
-            'bg-transparent border-2 border-primary text-primary hover:bg-primary hover:text-white': variant === 'outline',
-            'bg-danger-500 text-white hover:bg-danger-600 hover:-translate-y-0.5': variant === 'danger',
+            'bg-primary text-white hover:bg-primary-hover hover:shadow-button-hover focus:ring-primary/30': variant === 'primary',
+            'bg-transparent border-2 border-primary text-primary hover:bg-primary hover:text-white hover:shadow-button focus:ring-primary/30': variant === 'outline',
+            'bg-danger-500 text-white hover:bg-danger-600 hover:shadow-button-sm focus:ring-danger-500/30': variant === 'danger',
           },
           fullWidth && 'w-full',
           className
@@ -35,7 +37,12 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={isLoading || props.disabled}
         {...props}
       >
-        {isLoading ? 'Carregando...' : children}
+        {isLoading ? (
+          <span className="flex items-center justify-center gap-2">
+            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            Carregando...
+          </span>
+        ) : children}
       </button>
     )
   }
