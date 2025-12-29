@@ -1,4 +1,5 @@
 import { supabase } from '@/config/supabase'
+import { isDevelopmentMode, mockUsuario, mockCliente, mockAdmin } from '@/config/dev-mode'
 import type { Usuario, Cliente, LoginForm, CadastroClienteForm } from '@/types'
 
 export class AuthService {
@@ -6,6 +7,29 @@ export class AuthService {
    * Faz login do usuário
    */
   static async login(credentials: LoginForm) {
+    // Modo de desenvolvimento - login com dados mock
+    if (isDevelopmentMode()) {
+      console.log('🔧 Modo de desenvolvimento ativo - Usando dados mock')
+      console.log('Use: demo@cliente.com ou demo@admin.com (qualquer senha)')
+
+      await new Promise(resolve => setTimeout(resolve, 500)) // Simula delay
+
+      if (credentials.email === 'demo@admin.com') {
+        return {
+          user: { id: '999' } as any,
+          usuario: mockAdmin,
+          cliente: null,
+        }
+      } else {
+        return {
+          user: { id: '1' } as any,
+          usuario: mockUsuario,
+          cliente: mockCliente,
+        }
+      }
+    }
+
+    // Modo produção - login real com Supabase
     try {
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: credentials.email,
@@ -14,7 +38,6 @@ export class AuthService {
 
       if (authError) throw authError
 
-      // Buscar dados do usuário e cliente
       const { data: userData, error: userError } = await supabase
         .from('usuarios')
         .select('*')
@@ -49,8 +72,34 @@ export class AuthService {
    * Cadastra um novo cliente
    */
   static async cadastrarCliente(dados: CadastroClienteForm) {
+    // Modo de desenvolvimento
+    if (isDevelopmentMode()) {
+      console.log('🔧 Modo de desenvolvimento - Cadastro simulado')
+      await new Promise(resolve => setTimeout(resolve, 500))
+
+      const novoCliente = {
+        ...mockCliente,
+        id: Date.now(),
+        usuario_id: Date.now(),
+      }
+
+      const novoUsuario = {
+        ...mockUsuario,
+        id: Date.now(),
+        nome: dados.nome,
+        email: dados.email,
+        telefone: dados.telefone,
+      }
+
+      return {
+        user: { id: String(novoUsuario.id) } as any,
+        usuario: novoUsuario,
+        cliente: novoCliente,
+      }
+    }
+
+    // Modo produção
     try {
-      // 1. Criar usuário no Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: dados.email,
         password: dados.senha,
@@ -59,13 +108,12 @@ export class AuthService {
       if (authError) throw authError
       if (!authData.user) throw new Error('Erro ao criar usuário')
 
-      // 2. Criar registro na tabela usuarios
       const { data: userData, error: userError } = await supabase
         .from('usuarios')
         .insert({
           nome: dados.nome,
           email: dados.email,
-          senha_hash: '', // Hash será gerenciado pelo Supabase Auth
+          senha_hash: '',
           tipo_usuario: 'cliente',
           telefone: dados.telefone,
         })
@@ -74,7 +122,6 @@ export class AuthService {
 
       if (userError) throw userError
 
-      // 3. Criar registro na tabela clientes
       const { data: clienteData, error: clienteError } = await supabase
         .from('clientes')
         .insert({
@@ -106,6 +153,11 @@ export class AuthService {
    * Faz logout do usuário
    */
   static async logout() {
+    if (isDevelopmentMode()) {
+      console.log('🔧 Modo de desenvolvimento - Logout simulado')
+      return
+    }
+
     const { error } = await supabase.auth.signOut()
     if (error) throw error
   }
@@ -114,6 +166,10 @@ export class AuthService {
    * Obtém a sessão atual
    */
   static async getSession() {
+    if (isDevelopmentMode()) {
+      return null
+    }
+
     const { data, error } = await supabase.auth.getSession()
     if (error) throw error
     return data.session
@@ -123,6 +179,10 @@ export class AuthService {
    * Obtém o usuário atual
    */
   static async getCurrentUser() {
+    if (isDevelopmentMode()) {
+      return null
+    }
+
     const { data: { user }, error } = await supabase.auth.getUser()
     if (error) throw error
     return user
@@ -132,6 +192,13 @@ export class AuthService {
    * Obtém dados completos do usuário logado
    */
   static async getUserData(userId: string) {
+    if (isDevelopmentMode()) {
+      return {
+        usuario: mockUsuario,
+        cliente: mockCliente,
+      }
+    }
+
     try {
       const { data: userData, error: userError } = await supabase
         .from('usuarios')
@@ -166,6 +233,11 @@ export class AuthService {
    * Reseta a senha do usuário
    */
   static async resetPassword(email: string) {
+    if (isDevelopmentMode()) {
+      console.log('🔧 Modo de desenvolvimento - Reset de senha simulado')
+      return
+    }
+
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
     })
@@ -176,6 +248,11 @@ export class AuthService {
    * Atualiza a senha do usuário
    */
   static async updatePassword(newPassword: string) {
+    if (isDevelopmentMode()) {
+      console.log('🔧 Modo de desenvolvimento - Atualização de senha simulada')
+      return
+    }
+
     const { error } = await supabase.auth.updateUser({
       password: newPassword,
     })
