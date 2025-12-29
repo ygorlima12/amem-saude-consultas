@@ -11,13 +11,14 @@ export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(
       <span
         ref={ref}
         className={cn(
-          'inline-block px-2.5 py-1.5 rounded-full text-xs font-bold tracking-[0.2px] border whitespace-nowrap',
+          'inline-flex items-center gap-1 px-3 py-1 rounded-badge text-xs font-semibold tracking-[0.3px] whitespace-nowrap',
+          'transition-all duration-200',
           {
-            'bg-warning-500/[.18] text-warning-800 border-warning-500/35': variant === 'warning',
-            'bg-success-500/15 text-success-700 border-success-500/35': variant === 'success',
-            'bg-danger-500/[.12] text-danger-700 border-danger-500/30': variant === 'danger',
-            'bg-info-500/[.12] text-info-700 border-info-500/30': variant === 'info',
-            'bg-gray-500/[.12] text-gray-700 border-gray-500/25': variant === 'neutral',
+            'bg-warning-500/10 text-warning-700 ring-1 ring-warning-500/20 hover:ring-warning-500/30': variant === 'warning',
+            'bg-success-500/10 text-success-700 ring-1 ring-success-500/20 hover:ring-success-500/30': variant === 'success',
+            'bg-danger-500/10 text-danger-700 ring-1 ring-danger-500/20 hover:ring-danger-500/30': variant === 'danger',
+            'bg-info-500/10 text-info-700 ring-1 ring-info-500/20 hover:ring-info-500/30': variant === 'info',
+            'bg-gray-500/10 text-gray-700 ring-1 ring-gray-500/20 hover:ring-gray-500/30': variant === 'neutral',
           },
           className
         )}
