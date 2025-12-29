@@ -1,6 +1,28 @@
 -- Banco de Dados: Sistema Amém Saúde Consultas (PostgreSQL/Supabase)
 -- Schema completo para gestão de consultas, clientes e estabelecimentos
 
+-- IMPORTANTE: Execute este SQL no SQL Editor do Supabase
+-- Certifique-se de que não há tabelas existentes ou use DROP TABLE IF EXISTS
+
+-- ============================================
+-- LIMPAR TABELAS E FUNÇÕES EXISTENTES (OPCIONAL)
+-- ============================================
+-- Descomente se precisar resetar o banco
+-- DROP TABLE IF EXISTS logs_sistema CASCADE;
+-- DROP TABLE IF EXISTS financeiro CASCADE;
+-- DROP TABLE IF EXISTS notificacoes CASCADE;
+-- DROP TABLE IF EXISTS indicacoes CASCADE;
+-- DROP TABLE IF EXISTS guias CASCADE;
+-- DROP TABLE IF EXISTS reembolsos CASCADE;
+-- DROP TABLE IF EXISTS pagamentos CASCADE;
+-- DROP TABLE IF EXISTS agendamentos CASCADE;
+-- DROP TABLE IF EXISTS estabelecimentos CASCADE;
+-- DROP TABLE IF EXISTS especialidades CASCADE;
+-- DROP TABLE IF EXISTS clientes CASCADE;
+-- DROP TABLE IF EXISTS empresas CASCADE;
+-- DROP TABLE IF EXISTS usuarios CASCADE;
+-- DROP FUNCTION IF EXISTS update_ultima_atualizacao() CASCADE;
+
 -- ============================================
 -- TABELA DE USUÁRIOS
 -- ============================================
@@ -235,7 +257,7 @@ CREATE INDEX IF NOT EXISTS idx_logs_data ON logs_sistema(created_at);
 CREATE INDEX IF NOT EXISTS idx_estabelecimentos_cidade ON estabelecimentos(cidade, estado);
 
 -- ============================================
--- TRIGGERS PARA ATUALIZAÇÃO AUTOMÁTICA
+-- FUNCTION PARA ATUALIZAÇÃO AUTOMÁTICA
 -- ============================================
 CREATE OR REPLACE FUNCTION update_ultima_atualizacao()
 RETURNS TRIGGER AS $$
@@ -245,32 +267,55 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER update_usuarios_timestamp BEFORE UPDATE ON usuarios
-FOR EACH ROW EXECUTE FUNCTION update_ultima_atualizacao();
+-- ============================================
+-- TRIGGERS PARA ATUALIZAÇÃO AUTOMÁTICA
+-- ============================================
+-- Apenas para tabelas que TÊM a coluna ultima_atualizacao
 
-CREATE TRIGGER update_empresas_timestamp BEFORE UPDATE ON empresas
-FOR EACH ROW EXECUTE FUNCTION update_ultima_atualizacao();
+DROP TRIGGER IF EXISTS update_usuarios_timestamp ON usuarios;
+CREATE TRIGGER update_usuarios_timestamp
+    BEFORE UPDATE ON usuarios
+    FOR EACH ROW EXECUTE FUNCTION update_ultima_atualizacao();
 
-CREATE TRIGGER update_clientes_timestamp BEFORE UPDATE ON clientes
-FOR EACH ROW EXECUTE FUNCTION update_ultima_atualizacao();
+DROP TRIGGER IF EXISTS update_empresas_timestamp ON empresas;
+CREATE TRIGGER update_empresas_timestamp
+    BEFORE UPDATE ON empresas
+    FOR EACH ROW EXECUTE FUNCTION update_ultima_atualizacao();
 
-CREATE TRIGGER update_especialidades_timestamp BEFORE UPDATE ON especialidades
-FOR EACH ROW EXECUTE FUNCTION update_ultima_atualizacao();
+DROP TRIGGER IF EXISTS update_clientes_timestamp ON clientes;
+CREATE TRIGGER update_clientes_timestamp
+    BEFORE UPDATE ON clientes
+    FOR EACH ROW EXECUTE FUNCTION update_ultima_atualizacao();
 
-CREATE TRIGGER update_estabelecimentos_timestamp BEFORE UPDATE ON estabelecimentos
-FOR EACH ROW EXECUTE FUNCTION update_ultima_atualizacao();
+DROP TRIGGER IF EXISTS update_especialidades_timestamp ON especialidades;
+CREATE TRIGGER update_especialidades_timestamp
+    BEFORE UPDATE ON especialidades
+    FOR EACH ROW EXECUTE FUNCTION update_ultima_atualizacao();
 
-CREATE TRIGGER update_agendamentos_timestamp BEFORE UPDATE ON agendamentos
-FOR EACH ROW EXECUTE FUNCTION update_ultima_atualizacao();
+DROP TRIGGER IF EXISTS update_estabelecimentos_timestamp ON estabelecimentos;
+CREATE TRIGGER update_estabelecimentos_timestamp
+    BEFORE UPDATE ON estabelecimentos
+    FOR EACH ROW EXECUTE FUNCTION update_ultima_atualizacao();
 
-CREATE TRIGGER update_pagamentos_timestamp BEFORE UPDATE ON pagamentos
-FOR EACH ROW EXECUTE FUNCTION update_ultima_atualizacao();
+DROP TRIGGER IF EXISTS update_agendamentos_timestamp ON agendamentos;
+CREATE TRIGGER update_agendamentos_timestamp
+    BEFORE UPDATE ON agendamentos
+    FOR EACH ROW EXECUTE FUNCTION update_ultima_atualizacao();
 
-CREATE TRIGGER update_reembolsos_timestamp BEFORE UPDATE ON reembolsos
-FOR EACH ROW EXECUTE FUNCTION update_ultima_atualizacao();
+DROP TRIGGER IF EXISTS update_pagamentos_timestamp ON pagamentos;
+CREATE TRIGGER update_pagamentos_timestamp
+    BEFORE UPDATE ON pagamentos
+    FOR EACH ROW EXECUTE FUNCTION update_ultima_atualizacao();
 
-CREATE TRIGGER update_indicacoes_timestamp BEFORE UPDATE ON indicacoes
-FOR EACH ROW EXECUTE FUNCTION update_ultima_atualizacao();
+DROP TRIGGER IF EXISTS update_reembolsos_timestamp ON reembolsos;
+CREATE TRIGGER update_reembolsos_timestamp
+    BEFORE UPDATE ON reembolsos
+    FOR EACH ROW EXECUTE FUNCTION update_ultima_atualizacao();
+
+DROP TRIGGER IF EXISTS update_indicacoes_timestamp ON indicacoes;
+CREATE TRIGGER update_indicacoes_timestamp
+    BEFORE UPDATE ON indicacoes
+    FOR EACH ROW EXECUTE FUNCTION update_ultima_atualizacao();
 
 -- ============================================
 -- DADOS INICIAIS - ESPECIALIDADES
@@ -289,99 +334,32 @@ INSERT INTO especialidades (nome, descricao, valor) VALUES
 ON CONFLICT DO NOTHING;
 
 -- ============================================
--- POLÍTICAS DE ROW LEVEL SECURITY (RLS)
+-- ROW LEVEL SECURITY (RLS) - DESABILITADO POR PADRÃO
 -- ============================================
--- Habilitar RLS em todas as tabelas
-ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
-ALTER TABLE clientes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE empresas ENABLE ROW LEVEL SECURITY;
-ALTER TABLE especialidades ENABLE ROW LEVEL SECURITY;
-ALTER TABLE estabelecimentos ENABLE ROW LEVEL SECURITY;
-ALTER TABLE agendamentos ENABLE ROW LEVEL SECURITY;
-ALTER TABLE pagamentos ENABLE ROW LEVEL SECURITY;
-ALTER TABLE reembolsos ENABLE ROW LEVEL SECURITY;
-ALTER TABLE guias ENABLE ROW LEVEL SECURITY;
-ALTER TABLE indicacoes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notificacoes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE financeiro ENABLE ROW LEVEL SECURITY;
-ALTER TABLE logs_sistema ENABLE ROW LEVEL SECURITY;
+-- IMPORTANTE: No Supabase, RLS deve ser configurado depois
+-- Para desenvolvimento inicial, vamos deixar desabilitado
+-- Descomente as linhas abaixo quando estiver pronto para produção
 
--- Políticas para clientes (podem ver apenas seus próprios dados)
-CREATE POLICY "Clientes podem ver seus próprios dados" ON clientes
-FOR SELECT USING (usuario_id = auth.uid()::bigint);
+-- ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE clientes ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE agendamentos ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE pagamentos ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE reembolsos ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE notificacoes ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Clientes podem atualizar seus próprios dados" ON clientes
-FOR UPDATE USING (usuario_id = auth.uid()::bigint);
+-- Políticas básicas (descomentadas quando RLS estiver ativo)
+-- CREATE POLICY "Usuários podem ver seus próprios dados" ON usuarios
+--     FOR SELECT USING (auth.uid()::text = id::text);
 
--- Políticas para agendamentos
-CREATE POLICY "Clientes podem ver seus agendamentos" ON agendamentos
-FOR SELECT USING (
-    cliente_id IN (SELECT id FROM clientes WHERE usuario_id = auth.uid()::bigint)
-);
+-- CREATE POLICY "Clientes podem ver seus próprios dados" ON clientes
+--     FOR SELECT USING (usuario_id::text = auth.uid()::text);
 
-CREATE POLICY "Clientes podem criar agendamentos" ON agendamentos
-FOR INSERT WITH CHECK (
-    cliente_id IN (SELECT id FROM clientes WHERE usuario_id = auth.uid()::bigint)
-);
-
--- Políticas para reembolsos
-CREATE POLICY "Clientes podem ver seus reembolsos" ON reembolsos
-FOR SELECT USING (
-    cliente_id IN (SELECT id FROM clientes WHERE usuario_id = auth.uid()::bigint)
-);
-
-CREATE POLICY "Clientes podem criar reembolsos" ON reembolsos
-FOR INSERT WITH CHECK (
-    cliente_id IN (SELECT id FROM clientes WHERE usuario_id = auth.uid()::bigint)
-);
-
--- Políticas para notificações
-CREATE POLICY "Usuários podem ver suas notificações" ON notificacoes
-FOR SELECT USING (usuario_id = auth.uid()::bigint);
-
-CREATE POLICY "Usuários podem atualizar suas notificações" ON notificacoes
-FOR UPDATE USING (usuario_id = auth.uid()::bigint);
-
--- Políticas para leitura pública (especialidades e estabelecimentos)
-CREATE POLICY "Todos podem ver especialidades ativas" ON especialidades
-FOR SELECT USING (ativo = true);
-
-CREATE POLICY "Todos podem ver estabelecimentos ativos" ON estabelecimentos
-FOR SELECT USING (ativo = true);
-
--- Políticas para admins (acesso total)
-CREATE POLICY "Admins têm acesso total a clientes" ON clientes
-FOR ALL USING (
-    EXISTS (
-        SELECT 1 FROM usuarios
-        WHERE id = auth.uid()::bigint
-        AND tipo_usuario IN ('admin', 'tecnico')
-    )
-);
-
-CREATE POLICY "Admins têm acesso total a agendamentos" ON agendamentos
-FOR ALL USING (
-    EXISTS (
-        SELECT 1 FROM usuarios
-        WHERE id = auth.uid()::bigint
-        AND tipo_usuario IN ('admin', 'tecnico')
-    )
-);
-
-CREATE POLICY "Admins têm acesso total a reembolsos" ON reembolsos
-FOR ALL USING (
-    EXISTS (
-        SELECT 1 FROM usuarios
-        WHERE id = auth.uid()::bigint
-        AND tipo_usuario IN ('admin', 'tecnico')
-    )
-);
-
-CREATE POLICY "Admins têm acesso total a financeiro" ON financeiro
-FOR ALL USING (
-    EXISTS (
-        SELECT 1 FROM usuarios
-        WHERE id = auth.uid()::bigint
-        AND tipo_usuario IN ('admin', 'tecnico')
-    )
-);
+-- ============================================
+-- VERIFICAÇÃO FINAL
+-- ============================================
+-- Listar todas as tabelas criadas
+SELECT table_name
+FROM information_schema.tables
+WHERE table_schema = 'public'
+AND table_type = 'BASE TABLE'
+ORDER BY table_name;
