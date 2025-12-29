@@ -1,0 +1,2452 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Amém Saúde - Portal do Beneficiário</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body{
+      font-family:'Inter', sans-serif;
+      background:#f8f9fa;
+      color:#2c3e50;
+      overflow-x:hidden;
+    }
+
+    /* Container Principal */
+    .app-container{
+      display:flex;
+      height:100vh;
+      overflow:hidden;
+    }
+
+    /* Sidebar */
+    .sidebar{
+      width:280px;
+      background:#183157;
+      color:white;
+      overflow-y:auto;
+      flex-shrink:0;
+      transition:transform .3s ease;
+    }
+    .sidebar::-webkit-scrollbar{ width:6px; }
+    .sidebar::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.2); border-radius:3px; }
+
+    .sidebar-header{
+      padding:25px 20px;
+      border-bottom:1px solid rgba(255,255,255,.1);
+      text-align:center;
+      background:white;
+    }
+    .logo{ max-width:160px; height:auto; margin-bottom:15px; }
+
+    .user-info{
+      background:#183157;
+      padding:12px 20px;
+      text-align:left;
+      min-height:12px;
+    }
+    .user-name, .user-plan{ display:none; }
+
+    .nav-menu{ padding:20px 0; }
+    .nav-section-title{
+      padding:15px 20px 8px;
+      font-size:10px;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:1px;
+      color:rgba(13,178,164);
+    }
+    .nav-item{
+      padding:12px 20px;
+      cursor:pointer;
+      transition:all .2s;
+      color:rgba(255,255,255,.8);
+      font-size:16px;
+      border-left:3px solid transparent;
+      user-select:none;
+    }
+    .nav-item:hover{
+      background:rgba(255,255,255,.05);
+      color:white;
+      border-left-color:#0DB5A6;
+    }
+    .nav-item.active{
+      background:rgba(13,181,166,.15);
+      border-left-color:#0DB5A6;
+      color:white;
+      font-weight:600;
+    }
+
+    .sidebar-footer{
+      padding:20px;
+      border-top:1px solid rgba(255,255,255,.1);
+    }
+    .btn-logout{
+      width:100%;
+      padding:12px;
+      background:rgba(220,53,69,.15);
+      border:1px solid rgba(220,53,69,.3);
+      color:#ff6b6b;
+      border-radius:8px;
+      font-weight:600;
+      cursor:pointer;
+      font-size:14px;
+    }
+
+    /* Main Content */
+    .main-content{
+      flex:1;
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+      min-height:0;
+    }
+
+    .top-header{
+      background:white;
+      padding:20px 40px;
+      box-shadow:0 2px 8px rgba(0,0,0,.08);
+      flex-shrink:0;
+    }
+    .page-title{
+      font-size:26px;
+      font-weight:700;
+      color:#183157;
+    }
+
+    .content-wrapper{
+      flex:1;
+      overflow-y:auto;
+      padding:30px 40px;
+      min-height:0;
+      -webkit-overflow-scrolling:touch;
+    }
+    .content-wrapper::-webkit-scrollbar{ width:8px; }
+    .content-wrapper::-webkit-scrollbar-thumb{ background:#ccc; border-radius:4px; }
+
+    /* Seções */
+    .content-section{
+      display:none;
+      animation:fadeIn .3s ease;
+    }
+    .content-section.active{ display:block; }
+
+    @keyframes fadeIn{
+      from{ opacity:0; transform:translateY(10px); }
+      to{ opacity:1; transform:translateY(0); }
+    }
+
+    /* Welcome Banner */
+    .welcome-banner{
+      background:linear-gradient(135deg,#183157 0%,#0DB5A6 100%);
+      color:white;
+      padding:50px 40px;
+      border-radius:16px;
+      margin-bottom:40px;
+      text-align:center;
+    }
+    .welcome-title{ font-size:48px; font-weight:800; margin-bottom:10px; }
+    .welcome-subtitle{ font-size:18px; opacity:.9; }
+
+    /* Carousel */
+    .carousel-section{ margin-bottom:40px; }
+    .carousel-title{
+      font-size:24px;
+      font-weight:700;
+      color:#183157;
+      margin-bottom:20px;
+    }
+    .carousel-container{ position:relative; overflow:hidden; }
+    .carousel-track{
+      display:flex;
+      gap:20px;
+      transition:transform .45s ease;
+      will-change:transform;
+    }
+    .carousel-card{
+      min-width:320px;
+      height:280px;
+      border-radius:12px;
+      overflow:hidden;
+      cursor:pointer;
+      position:relative;
+      transition:transform .3s;
+      box-shadow:0 4px 12px rgba(0,0,0,.1);
+      flex:0 0 auto;
+    }
+    .carousel-card:hover{
+      transform:scale(1.05);
+      box-shadow:0 8px 24px rgba(0,0,0,.15);
+    }
+    .carousel-card-bg{
+      position:absolute;
+      width:100%;
+      height:100%;
+      background:linear-gradient(135deg,#183157 0%,#0DB5A6 100%);
+    }
+    .carousel-card:nth-child(2) .carousel-card-bg{ background:linear-gradient(135deg,#dc3545 0%,#c82333 100%); }
+    .carousel-card:nth-child(3) .carousel-card-bg{ background:linear-gradient(135deg,#28a745 0%,#218838 100%); }
+    .carousel-card:nth-child(4) .carousel-card-bg{ background:linear-gradient(135deg,#17a2b8 0%,#138496 100%); }
+    .carousel-card:nth-child(5) .carousel-card-bg{ background:linear-gradient(135deg,#ffc107 0%,#e0a800 100%); }
+
+    .carousel-card-content{
+      position:relative;
+      z-index:2;
+      padding:30px;
+      height:100%;
+      display:flex;
+      flex-direction:column;
+      justify-content:space-between;
+      color:white;
+    }
+    .carousel-card-title{ font-size:22px; font-weight:700; margin-bottom:10px; }
+    .carousel-card-description{ font-size:14px; line-height:1.5; opacity:.95; }
+
+    .carousel-btn{
+      position:absolute;
+      top:50%;
+      transform:translateY(-50%);
+      background:rgba(255,255,255,.9);
+      border:none;
+      width:40px;
+      height:40px;
+      border-radius:50%;
+      cursor:pointer;
+      font-size:20px;
+      color:#183157;
+      z-index:10;
+      transition:all .3s;
+    }
+    .carousel-btn:hover{
+      background:white;
+      box-shadow:0 4px 12px rgba(0,0,0,.2);
+    }
+    .carousel-btn-prev{ left:10px; }
+    .carousel-btn-next{ right:10px; }
+
+    /* Cards */
+    .card{
+      background:white;
+      border-radius:12px;
+      padding:30px;
+      margin-bottom:25px;
+      box-shadow:0 2px 8px rgba(0,0,0,.08);
+    }
+    .card-title{
+      font-size:24px;
+      font-weight:700;
+      color:#183157;
+      margin-bottom:20px;
+      padding-bottom:15px;
+      border-bottom:2px solid #f0f0f0;
+    }
+    .card-subtitle{
+      font-size:14px;
+      color:#6c757d;
+      margin-top:-8px;
+      margin-bottom:16px;
+    }
+
+    /* Forms */
+    .form-group{ margin-bottom:20px; }
+    .form-label{
+      display:block;
+      font-weight:600;
+      color:#2c3e50;
+      margin-bottom:8px;
+      font-size:14px;
+    }
+    .form-control{
+      width:100%;
+      padding:12px 16px;
+      border:2px solid #e0e0e0;
+      border-radius:8px;
+      font-size:14px;
+      transition:all .3s;
+    }
+    .form-control:focus{
+      outline:none;
+      border-color:#0DB5A6;
+      box-shadow:0 0 0 3px rgba(13,181,166,.1);
+    }
+
+    .btn{
+      padding:12px 28px;
+      border:none;
+      border-radius:8px;
+      font-size:15px;
+      font-weight:600;
+      cursor:pointer;
+      transition:all .3s;
+    }
+    .btn-primary{ background:#0DB5A6; color:white; }
+    .btn-primary:hover{ background:#0a9d8f; transform:translateY(-2px); }
+    .btn-outline{ background:transparent; border:2px solid #0DB5A6; color:#0DB5A6; }
+    .btn-outline:hover{ background:#0DB5A6; color:white; }
+    .btn-danger{
+      background:#dc3545;
+      color:white;
+    }
+    .btn-danger:hover{ background:#c82333; transform:translateY(-2px); }
+
+    .btn-group{ display:flex; gap:15px; margin-top:20px; flex-wrap:wrap; }
+
+    /* Alerts */
+    .alert{
+      padding:15px 20px;
+      border-radius:8px;
+      margin-bottom:20px;
+      font-size:14px;
+    }
+    .alert-info{
+      background:#e7f3ff;
+      border-left:4px solid #0DB5A6;
+      color:#004085;
+    }
+    .alert-warning{
+      background:#fff3cd;
+      border-left:4px solid #ffc107;
+      color:#856404;
+    }
+
+    /* Empty State */
+    .empty-state{ text-align:center; padding:60px 20px; }
+    .empty-title{ font-size:18px; font-weight:600; color:#2c3e50; margin-bottom:10px; }
+    .empty-text{ font-size:14px; color:#6c757d; }
+
+    /* Info Box */
+    .info-box{
+      background:rgba(13,181,166,.05);
+      border-left:4px solid #0DB5A6;
+      padding:20px;
+      border-radius:8px;
+      margin:20px 0;
+    }
+
+    /* Tables */
+    .table-responsive{
+      overflow-x:auto;
+      border-radius:10px;
+      box-shadow:0 2px 8px rgba(0,0,0,.06);
+    }
+    table{
+      width:100%;
+      border-collapse:collapse;
+      background:white;
+      min-width:720px;
+    }
+    thead{ background:#183157; color:white; }
+    th{
+      padding:14px 16px;
+      text-align:left;
+      font-weight:700;
+      font-size:12px;
+      letter-spacing:.5px;
+      text-transform:uppercase;
+    }
+    td{
+      padding:14px 16px;
+      border-bottom:1px solid #eaeaea;
+      font-size:14px;
+      vertical-align:middle;
+    }
+    tbody tr:hover{ background:#f8f9fa; }
+
+    /* Status badges */
+    .badge{
+      display:inline-block;
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:700;
+      letter-spacing:.2px;
+      border:1px solid transparent;
+      white-space:nowrap;
+    }
+    .badge-warning{ background:rgba(255,193,7,.18); color:#856404; border-color:rgba(255,193,7,.35); }
+    .badge-success{ background:rgba(40,167,69,.15); color:#1e7e34; border-color:rgba(40,167,69,.35); }
+    .badge-danger{ background:rgba(220,53,69,.12); color:#b21f2d; border-color:rgba(220,53,69,.3); }
+    .badge-info{ background:rgba(23,162,184,.12); color:#117a8b; border-color:rgba(23,162,184,.3); }
+    .badge-neutral{ background:rgba(108,117,125,.12); color:#495057; border-color:rgba(108,117,125,.25); }
+
+    /* Google Maps */
+    #map{
+      width:100%;
+      height:420px;
+      border-radius:12px;
+      margin-top:0;
+      background:#eef2f6;
+    }
+
+    /* Layout: Solicitar atendimento (form + mapa lado a lado) */
+    .agendamento-grid{
+      display:grid;
+      grid-template-columns: minmax(320px, 520px) 1fr;
+      gap:22px;
+      align-items:start;
+    }
+    .agendamento-left{
+      background:transparent;
+    }
+    .agendamento-right{
+      position:sticky;
+      top:16px;
+    }
+
+    /* Modal */
+    .modal-overlay{
+      position:fixed;
+      top:0; left:0;
+      width:100%; height:100%;
+      background:rgba(0,0,0,.55);
+      display:none;
+      z-index:2000;
+      padding:24px;
+      overflow:auto;
+    }
+    .modal-overlay.active{ display:block; }
+    .modal{
+      max-width:860px;
+      margin:0 auto;
+      background:white;
+      border-radius:14px;
+      box-shadow:0 12px 40px rgba(0,0,0,.25);
+      overflow:hidden;
+    }
+    .modal-header{
+      padding:18px 22px;
+      background:#183157;
+      color:white;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+    .modal-title{ font-size:16px; font-weight:800; }
+    .modal-close{
+      background:rgba(255,255,255,.12);
+      border:1px solid rgba(255,255,255,.25);
+      color:white;
+      border-radius:10px;
+      padding:8px 10px;
+      cursor:pointer;
+      font-weight:800;
+    }
+    .modal-body{ padding:22px; }
+    .modal-body h4{
+      color:#183157;
+      margin:18px 0 10px;
+      font-size:16px;
+    }
+    .modal-body p, .modal-body li{
+      color:#2c3e50;
+      font-size:14px;
+      line-height:1.6;
+    }
+    .modal-body ul{ padding-left:18px; }
+
+    /* Stepper (pagamento) */
+    .stepper{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin:12px 0 18px;
+    }
+    .step{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      padding:10px 12px;
+      border-radius:12px;
+      background:#f3f6f9;
+      border:1px solid #e6ebf0;
+      font-size:13px;
+      font-weight:700;
+      color:#495057;
+    }
+    .step.active{
+      background:rgba(13,181,166,.12);
+      border-color:rgba(13,181,166,.35);
+      color:#0a6f66;
+    }
+    .step.done{
+      background:rgba(40,167,69,.12);
+      border-color:rgba(40,167,69,.35);
+      color:#1e7e34;
+    }
+
+    /* Collapsible (Observação) */
+    .collapsible-header{
+      background:rgba(13,181,166,.08);
+      padding:12px 16px;
+      border-radius:8px;
+      cursor:pointer;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      font-weight:600;
+      color:#183157;
+      margin-bottom:12px;
+      transition:all .3s;
+    }
+    .collapsible-header:hover{
+      background:rgba(13,181,166,.15);
+    }
+    .collapsible-arrow{
+      transition:transform .3s;
+    }
+    .collapsible-arrow.open{
+      transform:rotate(180deg);
+    }
+    .collapsible-content{
+      max-height:0;
+      overflow:hidden;
+      transition:max-height .3s ease;
+    }
+    .collapsible-content.open{
+      max-height:600px;
+    }
+
+    /* Location Cards Container com Scroll */
+    .location-cards-container{
+      max-height:280px;
+      overflow-y:auto;
+      border:2px solid #e0e0e0;
+      border-radius:12px;
+      padding:16px;
+      background:#fafbfc;
+      margin-bottom:1.5rem;
+    }
+    .location-cards-container::-webkit-scrollbar{ width:8px; }
+    .location-cards-container::-webkit-scrollbar-thumb{ background:#ccc; border-radius:4px; }
+
+    .location-cards{
+      display:grid;
+      grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));
+      gap:1rem;
+    }
+    .location-card{
+      background:white;
+      border:2px solid #e0e0e0;
+      border-radius:8px;
+      padding:1rem;
+      cursor:pointer;
+      transition:all .3s;
+      text-align:center;
+    }
+    .location-card:hover{
+      border-color:#0DB5A6;
+      transform:translateY(-2px);
+      box-shadow:0 4px 12px rgba(13,181,166,.2);
+    }
+    .location-card.selected{
+      border-color:#0DB5A6;
+      background:rgba(13,181,166,.1);
+    }
+    .location-card h4{
+      color:#183157;
+      margin-bottom:0.5rem;
+      font-size:15px;
+    }
+    .location-card p{
+      font-size:0.85rem;
+      color:#666;
+    }
+
+    /* Guia Document */
+    .guia-document{
+      background:white;
+      padding:2rem;
+      border:2px solid #e0e0e0;
+      border-radius:8px;
+    }
+    .guia-header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      border-bottom:2px solid #0DB5A6;
+      padding-bottom:1rem;
+      margin-bottom:1.5rem;
+    }
+    .guia-header img{
+      height:50px;
+    }
+    .guia-info{
+      margin-bottom:1rem;
+    }
+    .guia-info strong{
+      color:#183157;
+    }
+
+    /* Badge de notificação (sino) */
+    .notification-bell{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      font-size:13px;
+      background:rgba(255,193,7,.18);
+      color:#856404;
+      border-radius:999px;
+      padding:4px 10px;
+      margin-left:10px;
+      border:1px solid rgba(255,193,7,.35);
+    }
+
+    /* Print Styles */
+    @media print {
+      body * {
+        visibility:hidden;
+      }
+      .guia-document, .guia-document * {
+        visibility:visible;
+      }
+      .guia-document {
+        position:absolute;
+        left:0;
+        top:0;
+        width:100%;
+      }
+      .btn {
+        display:none;
+      }
+    }
+
+    /* Mobile */
+    .mobile-menu-toggle{
+      display:none;
+      position:fixed;
+      top:20px;
+      left:20px;
+      z-index:1100;
+      width:45px;
+      height:45px;
+      background:#183157;
+      color:white;
+      border:none;
+      border-radius:8px;
+      cursor:pointer;
+      font-size:20px;
+    }
+    .sidebar-overlay{
+      display:none;
+      position:fixed;
+      top:0; left:0;
+      width:100%;
+      height:100%;
+      background:rgba(0,0,0,.5);
+      z-index:999;
+    }
+
+    @media (max-width: 1024px){
+      .sidebar{
+        position:fixed;
+        height:100vh;
+        z-index:1000;
+        transform:translateX(-100%);
+      }
+      .sidebar.active{ transform:translateX(0); }
+      .sidebar-overlay.active{ display:block; }
+
+      .mobile-menu-toggle{
+        display:flex;
+        align-items:center;
+        justify-content:center;
+      }
+
+      .content-wrapper{ padding:20px; }
+      .welcome-title{ font-size:32px; }
+      .carousel-card{ min-width:280px; }
+
+      .agendamento-grid{
+        grid-template-columns: 1fr;
+      }
+      .agendamento-right{
+        position:static;
+      }
+      #map{ height:320px; }
+    }
+
+    @media (max-width: 768px){
+      .btn-group{ flex-direction:column; }
+      .btn{ width:100%; }
+      table{ min-width: 680px; }
+      .location-cards{
+        grid-template-columns:1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <button class="mobile-menu-toggle" onclick="toggleSidebar()">☰</button>
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+  <!-- MODAIS -->
+  <div class="modal-overlay" id="modalOverlay" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-header">
+        <div class="modal-title" id="modalTitle">Modal</div>
+        <button class="modal-close" onclick="closeModal()">Fechar</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <img src="01.png" alt="Amém Saúde" class="logo" />
+      </div>
+
+      <div class="user-info"></div>
+
+      <nav class="nav-menu">
+        <div class="nav-section-title">Dados</div>
+        <div class="nav-item" onclick="showSection('dados-beneficiario')">Dados do Beneficiário</div>
+
+        <div class="nav-section-title">Principal</div>
+        <div class="nav-item active" onclick="showSection('home')">Início</div>
+
+        <div class="nav-section-title">Agendamentos</div>
+        <div class="nav-item" onclick="showSection('solicitar-agendamento')">Solicitar Agendamento</div>
+        <div class="nav-item" onclick="showSection('meus-agendamentos')">Meus Agendamentos</div>
+        <div class="nav-item" onclick="showSection('cancelar-agendamento')">Cancelar Agendamento</div>
+
+        <div class="nav-section-title">Pagamentos</div>
+        <div class="nav-item" onclick="showSection('coparticipacao')">Links de Pagamento</div>
+
+        <div class="nav-section-title">Documentos</div>
+        <div class="nav-item" onclick="showSection('guias')">Guias de Atendimento</div>
+
+        <div class="nav-section-title">Reembolso</div>
+        <div class="nav-item" onclick="showSection('reembolso-consulta')">Reembolso Consultas</div>
+        <div class="nav-item" onclick="showSection('reembolso-exames')">Reembolso Exames</div>
+        <div class="nav-item" onclick="showSection('solicitar-reembolso')">Solicitar Reembolso</div>
+
+        <div class="nav-section-title">Outros</div>
+        <div class="nav-item" onclick="showSection('indicacao')">Indicação</div>
+        <div class="nav-item" onclick="showSection('ajuda')">Ajuda</div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="btn-logout" onclick="logout()">Sair</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="top-header">
+        <h1 class="page-title" id="pageTitle">Início</h1>
+      </header>
+
+      <div class="content-wrapper">
+
+        <!-- DADOS DO BENEFICIÁRIO -->
+        <section id="dados-beneficiario" class="content-section">
+          <div class="card">
+            <h3 class="card-title">Dados do Beneficiário</h3>
+            <p class="card-subtitle">Atualize os seus dados de contato e endereço.</p>
+
+            <form id="formDadosBeneficiario">
+              <div class="form-group">
+                <label class="form-label">Nome completo</label>
+                <input type="text" class="form-control" value="Maria Flor" readonly />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">E-mail</label>
+                <input type="email" class="form-control" id="benefEmail" placeholder="seuemail@exemplo.com" />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Sexo</label>
+                <select class="form-control" id="benefSexo">
+                  <option value="">Selecione</option>
+                  <option value="Feminino">Feminino</option>
+                  <option value="Masculino">Masculino</option>
+                  <option value="Outro">Outro</option>
+                  <option value="Prefiro não informar">Prefiro não informar</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Celular</label>
+                <input type="text" class="form-control" id="benefCelular" placeholder="(00) 00000-0000" />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">CEP</label>
+                <input type="text" class="form-control" id="benefCep" placeholder="00.000-000" maxlength="10" />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Data de nascimento</label>
+                <input type="date" class="form-control" id="benefNascimento" />
+              </div>
+
+              <div class="btn-group">
+                <button type="submit" class="btn btn-primary">Salvar dados</button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <!-- HOME -->
+        <section id="home" class="content-section active">
+          <div class="welcome-banner">
+            <div class="welcome-title">Bem-vindo! Maria Flor</div>
+            <div class="welcome-subtitle">Portal Amém Consultas a preço Fixo</div>
+          </div>
+
+          <div class="carousel-section">
+            <h2 class="carousel-title">Serviços em Destaque</h2>
+            <div class="carousel-container" id="carouselContainer">
+              <button class="carousel-btn carousel-btn-prev" onclick="moveCarousel(-1)">‹</button>
+              <button class="carousel-btn carousel-btn-next" onclick="moveCarousel(1)">›</button>
+
+              <div class="carousel-track" id="carouselTrack">
+                <div class="carousel-card" onclick="showSection('solicitar-agendamento')">
+                  <div class="carousel-card-bg"></div>
+                  <div class="carousel-card-content">
+                    <div class="carousel-card-title">Solicitar Agendamento</div>
+                    <div class="carousel-card-description">Escolheremos um estabelecimento próximo (até 20 km) e ofereceremos data em até 7 dias após o pagamento da coparticipação.</div>
+                  </div>
+                </div>
+
+                <div class="carousel-card" onclick="showSection('cancelar-agendamento')">
+                  <div class="carousel-card-bg"></div>
+                  <div class="carousel-card-content">
+                    <div class="carousel-card-title">Cancelar Agendamento</div>
+                    <div class="carousel-card-description">Cancele o agendamento e solicite o estorno da coparticipação, quando aplicável.</div>
+                  </div>
+                </div>
+
+                <div class="carousel-card" onclick="showSection('reembolso-consulta')">
+                  <div class="carousel-card-bg"></div>
+                  <div class="carousel-card-content">
+                    <div class="carousel-card-title">Reembolso Consultas</div>
+                    <div class="carousel-card-description">Envio de documentos e acompanhamento de solicitações de reembolso de consulta.</div>
+                  </div>
+                </div>
+
+                <div class="carousel-card" onclick="showSection('reembolso-exames')">
+                  <div class="carousel-card-bg"></div>
+                  <div class="carousel-card-content">
+                    <div class="carousel-card-title">Reembolso Exames</div>
+                    <div class="carousel-card-description">Confira as regras e documentos necessários para solicitar reembolso de exames.</div>
+                  </div>
+                </div>
+
+                <div class="carousel-card" onclick="showSection('indicacao')">
+                  <div class="carousel-card-bg"></div>
+                  <div class="carousel-card-content">
+                    <div class="carousel-card-title">Indicação</div>
+                    <div class="carousel-card-description">Sugira estabelecimentos e acompanhe o status das suas indicações.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SOLICITAR AGENDAMENTO -->
+        <section id="solicitar-agendamento" class="content-section">
+          <div class="card">
+            <h3 class="card-title">Atendimento Presencial</h3>
+            <p class="card-subtitle">Selecione a especialidade, informe suas preferências. Campos com * são obrigatórios.</p>
+
+            <!-- Observação (collapsible) -->
+            <div class="collapsible-header" onclick="toggleCollapsible('regrasAgendamento')">
+              <span>📋 Observação — Regras de Agendamento</span>
+              <span class="collapsible-arrow" id="arrowRegrasAgendamento">▼</span>
+            </div>
+            <div class="collapsible-content" id="regrasAgendamento">
+              <div class="info-box" style="margin-top:0;">
+                <strong>Regras de Agendamento de Consultas:</strong>
+                <ul style="margin-top:10px; padding-left:18px;">
+                  <li><strong>Distância Limite do Local Solicitado:</strong> 20 km</li>
+                  <li><strong>Valor Limite da Consulta Particular:</strong> R$ 400,00</li>
+                  <li><strong>Prazo Máximo para realização da Consulta:</strong> 15 dias úteis</li>
+                </ul>
+                <p style="margin-top:10px;">Nas cidades sem infraestrutura ou rede credenciada será oferecido reembolso mediante prévia autorização da Central de Atendimento, até o limite de R$400,00 (quatrocentos reais) descontando a coparticipação de R$25,00.</p>
+              </div>
+            </div>
+
+            <div class="agendamento-grid">
+              <div class="agendamento-left">
+                <form id="formAgendamento">
+
+                  <div class="form-group">
+                    <label class="form-label">Selecione a especialidade *</label>
+                    <select class="form-control" id="especialidade" required>
+                      <option value="">Selecione</option>
+                      <option>Angiologia</option>
+                      <option>Cardiologia</option>
+                      <option>Clínico Geral</option>
+                      <option>Dermatologia</option>
+                      <option>Endocrinologia</option>
+                      <option>Gastroenterologia</option>
+                      <option>Ginecologia</option>
+                      <option>Mastologia</option>
+                      <option>Medicina da Família</option>
+                      <option>Medicina do Trabalho</option>
+                      <option>Oftalmologia</option>
+                      <option>Ortopedia</option>
+                      <option>Neurologia</option>
+                      <option>Otorrinolaringologia</option>
+                      <option>Pediatria</option>
+                      <option>Urologia</option>
+                      <option>Nefrologia</option>
+                      <option>Nutrologia</option>
+                      <option>Pneumologia</option>
+                      <option>Psiquiatria</option>
+                      <option>Reumatologia</option>
+                      <option>Psicólogo Online</option>
+                      <option>Nutricionista Online</option>
+                    </select>
+                  </div>
+
+                  <div class="info-box">
+                    <strong>Coparticipação: R$ 25,00</strong> (pagamento antes da consulta ou procedimento).
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label">Informe o CEP *</label>
+                    <input type="text" class="form-control" id="cep" placeholder="00.000-000" maxlength="10" required />
+                    <button type="button" class="btn btn-primary" onclick="buscarCEP()" style="margin-top:10px;">Buscar no Mapa</button>
+                    <div style="margin-top:10px; font-size:13px; color:#6c757d;" id="cepResult"></div>
+                  </div>
+
+                  <!-- Lista de Locais (agora controlada por CEP + Especialidade) -->
+                  <div id="locaisContainer" style="display:none;">
+                    <div class="form-group">
+                      <label class="form-label">Escolha o Local da Consulta *</label>
+                      <div class="location-cards-container">
+                        <div class="location-cards" id="locationCards">
+                          <div class="location-card" onclick="selectLocation('Hospital Santa Luzia', -23.5505, -46.6333, event)">
+                            <h4>Hospital Santa Luzia</h4>
+                            <p>São Paulo, SP</p>
+                          </div>
+                          <div class="location-card" onclick="selectLocation('Clínica Amor e Saúde', -23.5489, -46.6388, event)">
+                            <h4>Clínica Amor e Saúde</h4>
+                            <p>São Paulo, SP</p>
+                          </div>
+                          <div class="location-card" onclick="selectLocation('Centro Médico Vida', -23.5558, -46.6396, event)">
+                            <h4>Centro Médico Vida</h4>
+                            <p>São Paulo, SP</p>
+                          </div>
+                          <div class="location-card" onclick="selectLocation('Hospital São Lucas', -23.5620, -46.6550, event)">
+                            <h4>Hospital São Lucas</h4>
+                            <p>São Paulo, SP</p>
+                          </div>
+                          <div class="location-card" onclick="selectLocation('Clínica Bem Estar', -23.5400, -46.6200, event)">
+                            <h4>Clínica Bem Estar</h4>
+                            <p>São Paulo, SP</p>
+                          </div>
+                          <div class="location-card" onclick="selectLocation('Centro de Saúde Esperança', -23.5700, -46.6450, event)">
+                            <h4>Centro de Saúde Esperança</h4>
+                            <p>São Paulo, SP</p>
+                          </div>
+                          <div class="location-card" onclick="selectLocation('Hospital Vida Nova', -23.5300, -46.6100, event)">
+                            <h4>Hospital Vida Nova</h4>
+                            <p>São Paulo, SP</p>
+                          </div>
+                          <div class="location-card" onclick="selectLocation('Clínica Saúde Total', -23.5800, -46.6600, event)">
+                            <h4>Clínica Saúde Total</h4>
+                            <p>São Paulo, SP</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="form-group">
+                      <label class="form-label">Local Selecionado</label>
+                      <input type="text" class="form-control" id="localSelecionado" readonly placeholder="Selecione um local acima">
+                    </div>
+                  </div>
+
+                  <div class="alert alert-warning">
+                    <strong>Atenção:</strong> Mesmo que não haja sugestão de estabelecimento disponível na sua região, você segue tendo o seu pedido formal de consulta. Não é possível escolher um profissional específico, e a sugestão de estabelecimento não garante o agendamento, pois depende da disponibilidade e dos processos internos.
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label">Que dia da semana você pode ser atendido? *</label>
+                    <select class="form-control" id="prefDia" required>
+                      <option value="">Selecione</option>
+                      <option>Segunda-feira</option>
+                      <option>Terça-feira</option>
+                      <option>Quarta-feira</option>
+                      <option>Quinta-feira</option>
+                      <option>Sexta-feira</option>
+                      <option>Sábado</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label">Qual período você prefere para agendar sua consulta? *</label>
+                    <select class="form-control" id="prefPeriodo" required>
+                      <option value="">Selecione</option>
+                      <option>Manhã</option>
+                      <option>Tarde</option>
+                      <option>Noite</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label">Observação (opcional)</label>
+                    <textarea class="form-control" rows="4" id="obsAgendamento"></textarea>
+                  </div>
+
+                  <div class="btn-group">
+                    <button type="submit" class="btn btn-primary">Solicitar Agendamento</button>
+                    <button type="button" class="btn btn-outline" onclick="showSection('home')">Cancelar</button>
+                  </div>
+                </form>
+              </div>
+
+              <div class="agendamento-right">
+                <div class="info-box" style="margin-top:0;">
+                  <strong>Mapa</strong><br />
+                  <span style="color:#6c757d; font-size:13px;">Após buscar um CEP válido, mostraremos a localização aproximada.</span>
+                </div>
+                <div id="map"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- MEUS AGENDAMENTOS -->
+        <section id="meus-agendamentos" class="content-section">
+          <div class="card">
+            <h3 class="card-title">Agendamentos</h3>
+            <p class="card-subtitle">Exibição limitada a 5 registros para sua comodidade.</p>
+
+            <div class="table-responsive">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nome</th>
+                    <th>Especialidade</th>
+                    <th>Local</th>
+                    <th>Dia</th>
+                    <th>Horário</th>
+                    <th>Cidade/UF</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="agendamentosTbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- CANCELAR AGENDAMENTO -->
+        <section id="cancelar-agendamento" class="content-section">
+          <div class="card">
+            <h3 class="card-title">Cancelar Agendamentos</h3>
+            <p class="card-subtitle">Visualize e cancele agendamentos ainda elegíveis. A ação é irreversível.</p>
+
+            <div class="table-responsive">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nome</th>
+                    <th>Especialidade</th>
+                    <th>Local</th>
+                    <th>Dia</th>
+                    <th>Horário</th>
+                    <th>Cidade/UF</th>
+                    <th>Ação</th>
+                  </tr>
+                </thead>
+                <tbody id="cancelarTbody"></tbody>
+              </table>
+            </div>
+
+            <div class="alert alert-info" style="margin-top:18px;">
+              <strong>Importante:</strong> Não aceitamos o pagamento da coparticipação após o vencimento.
+            </div>
+          </div>
+        </section>
+
+        <!-- COPARTICIPAÇÃO -->
+        <section id="coparticipacao" class="content-section">
+          <div class="card">
+            <h3 class="card-title">Coparticipação – Links de Pagamento</h3>
+            <p class="card-subtitle">Visualize os últimos links de pagamento disponíveis para sua coparticipação.</p>
+
+            <div class="table-responsive">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nome</th>
+                    <th>Especialidade</th>
+                    <th>Local</th>
+                    <th>Dia</th>
+                    <th>Horário</th>
+                    <th>Cidade/UF</th>
+                    <th>Link</th>
+                    <th>Status</th>
+                    <th>Ação</th>
+                  </tr>
+                </thead>
+                <tbody id="pagamentosTbody"></tbody>
+              </table>
+            </div>
+
+            <div class="alert alert-warning" style="margin-top:18px;">
+              <strong>Atenção:</strong> Não aceitamos pagamento após o vencimento. Nesse caso é necessário fazer uma nova solicitação.
+            </div>
+          </div>
+        </section>
+
+        <!-- GUIAS -->
+        <section id="guias" class="content-section">
+          <div class="card">
+            <h3 class="card-title">
+              Guias de Atendimento
+              <span id="guiaNotificationBell" class="notification-bell" style="display:none;">
+                🔔 Nova guia disponível
+              </span>
+            </h3>
+            <p class="card-subtitle">Acompanhe as guias prontas para apresentação no estabelecimento.</p>
+
+            <div class="table-responsive">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nome</th>
+                    <th>Especialidade</th>
+                    <th>Local</th>
+                    <th>Dia</th>
+                    <th>Horário</th>
+                    <th>Cidade/UF</th>
+                    <th>Endereço</th>
+                    <th>Ação</th>
+                  </tr>
+                </thead>
+                <tbody id="guiasTbody"></tbody>
+              </table>
+            </div>
+
+            <div class="info-box">
+              <strong>Dica:</strong> A guia é disponibilizada após o aceite do agendamento. Só existe guia para agendamento presencial.
+            </div>
+          </div>
+        </section>
+
+        <!-- REEMBOLSO CONSULTA -->
+        <section id="reembolso-consulta" class="content-section">
+          <div class="card">
+            <h3 class="card-title">Reembolso de Consulta</h3>
+            <p class="card-subtitle">Acompanhe suas solicitações e consulte as regras antes de enviar documentos.</p>
+
+            <div class="btn-group" style="margin-top:0; margin-bottom:14px;">
+              <button class="btn btn-primary" onclick="openRegrasConsulta()">Ver regras do reembolso</button>
+              <button class="btn btn-outline" onclick="showSection('solicitar-reembolso-consulta')">Solicitar Reembolso</button>
+            </div>
+
+            <div class="table-responsive">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Protocolo</th>
+                    <th>Data</th>
+                    <th>Local</th>
+                    <th>Especialidade</th>
+                    <th>Valor (R$)</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="reembolsoConsultaTbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- REEMBOLSO EXAMES -->
+        <section id="reembolso-exames" class="content-section">
+          <div class="card">
+            <h3 class="card-title">Reembolso de Exames</h3>
+            <p class="card-subtitle">Acompanhe suas solicitações e consulte as regras antes de enviar documentos.</p>
+
+            <div class="btn-group" style="margin-top:0; margin-bottom:14px;">
+              <button class="btn btn-primary" onclick="openRegrasExames()">Ver regras do reembolso</button>
+              <button class="btn btn-outline" onclick="showSection('solicitar-reembolso-exame')">Solicitar Reembolso</button>
+            </div>
+
+            <div class="table-responsive">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Protocolo</th>
+                    <th>Data</th>
+                    <th>Local</th>
+                    <th>Exames</th>
+                    <th>Valor (R$)</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="reembolsoExamesTbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- SOLICITAR REEMBOLSO (HUB) -->
+        <section id="solicitar-reembolso" class="content-section">
+          <div class="card">
+            <h3 class="card-title">Solicitar Reembolso</h3>
+            <p class="card-subtitle">Selecione o tipo de reembolso para enviar a documentação correta.</p>
+
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:18px;">
+              <div style="background:rgba(13,181,166,.05); padding:22px; border-radius:12px; cursor:pointer;" onclick="showSection('solicitar-reembolso-consulta')">
+                <h4 style="color:#183157; margin-bottom:8px;">Reembolso de Consulta</h4>
+                <p style="color:#6c757d; font-size:14px;">Envie nota fiscal e dados para análise conforme regras do plano.</p>
+              </div>
+              <div style="background:rgba(13,181,166,.05); padding:22px; border-radius:12px; cursor:pointer;" onclick="showSection('solicitar-reembolso-exame')">
+                <h4 style="color:#183157; margin-bottom:8px;">Reembolso de Exames</h4>
+                <p style="color:#6c757d; font-size:14px;">Envie nota fiscal e pedido médico. Cálculo estimado automático.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SOLICITAR REEMBOLSO CONSULTA -->
+        <section id="solicitar-reembolso-consulta" class="content-section">
+          <div class="card">
+            <h3 class="card-title">Reembolso de Consulta — Solicitar</h3>
+
+            <div class="info-box">
+              <strong>Procedimento Operacional – Reembolso de Consulta</strong><br/>
+              <span style="color:#6c757d; font-size:13px;">Leia com atenção antes de enviar seus documentos.</span>
+            </div>
+
+            <form id="formReembolsoConsulta">
+              <div class="form-group">
+                <label class="form-label">Especialidade *</label>
+                <select class="form-control" id="consultaEspecialidade" required>
+                  <option value="">Selecione</option>
+                  <option>Cardiologia</option>
+                  <option>Dermatologia</option>
+                  <option>Ortopedia</option>
+                  <option>Pediatria</option>
+                  <option>Ginecologia</option>
+                  <option>Clínico Geral</option>
+                  <option>Oftalmologia</option>
+                  <option>Neurologia</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Data da Consulta *</label>
+                <input type="date" class="form-control" id="consultaData" required />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Valor da Consulta (R$) *</label>
+                <input type="number" class="form-control" id="consultaValor" placeholder="0,00" step="0.01" required />
+              </div>
+
+              <div class="info-box" style="margin-top:0;">
+                <strong>Valor estimado de reembolso</strong><br/>
+                <span style="color:#6c757d; font-size:13px;">Estimativa: valor da consulta menos coparticipação (R$ 25,00), respeitando o limite do plano.</span>
+                <div style="font-size:34px; font-weight:800; color:#0DB5A6; margin-top:8px;" id="consultaEstimativa">R$ 0,00</div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Tipo de chave PIX *</label>
+                <select class="form-control" id="consultaPixTipo" required>
+                  <option value="">Selecione</option>
+                  <option>CPF</option>
+                  <option>E-mail</option>
+                  <option>Telefone</option>
+                  <option>Chave Aleatória</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Chave PIX *</label>
+                <input type="text" class="form-control" id="consultaPixChave" required />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Nota Fiscal (PDF ou JPG até 5MB) *</label>
+                <input type="file" class="form-control" id="consultaNota" accept=".pdf,.jpg,.jpeg" required />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Recibo (PDF ou JPG até 5MB) *</label>
+                <input type="file" class="form-control" id="consultaRecibo" accept=".pdf,.jpg,.jpeg" required />
+              </div>
+
+              <div class="btn-group">
+                <button type="submit" class="btn btn-primary">Enviar solicitação</button>
+                <button type="button" class="btn btn-outline" onclick="showSection('reembolso-consulta')">Voltar</button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <!-- SOLICITAR REEMBOLSO EXAME -->
+        <section id="solicitar-reembolso-exame" class="content-section">
+          <div class="card">
+            <h3 class="card-title">Reembolso de Exames — Solicitar</h3>
+
+            <div class="info-box">
+              <strong>Regras principais</strong>
+              <ul style="margin-top:10px; padding-left:18px;">
+                <li>Nota fiscal emitida há no máximo 10 dias, com descrição detalhada e valores unitários dos exames do pedido médico.</li>
+                <li>Pedido médico legível (PDF ou JPG).</li>
+                <li>Reembolso: 100% até R$ 50 | 40% de R$ 50,01 a R$ 500 | acima de R$ 500 = R$ 150 (limite máximo por utilização).</li>
+                <li>Um pedido por mês. Pagamento via PIX em nome do beneficiário.</li>
+              </ul>
+            </div>
+
+            <form id="formReembolsoExame">
+              <div class="form-group">
+                <label class="form-label">Data da Nota Fiscal *</label>
+                <input type="date" class="form-control" id="exameData" required />
+                <div style="margin-top:6px; font-size:12px; color:#6c757d;">Deve estar entre hoje e até 10 dias anteriores.</div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Valor da Nota (R$) *</label>
+                <input type="number" class="form-control" id="exameValor" placeholder="0,00" step="0.01" required />
+                <div style="margin-top:6px; font-size:12px; color:#6c757d;">Digite o valor total da nota fiscal.</div>
+              </div>
+
+              <div class="info-box" style="margin-top:0;">
+                <strong>Valor estimado de reembolso</strong>
+                <div style="font-size:34px; font-weight:800; color:#0DB5A6; margin-top:8px;" id="exameEstimativa">R$ 0,00</div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Tipo de chave PIX *</label>
+                <select class="form-control" id="examePixTipo" required>
+                  <option value="">Selecione</option>
+                  <option>CPF</option>
+                  <option>E-mail</option>
+                  <option>Telefone</option>
+                  <option>Chave Aleatória</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Chave PIX *</label>
+                <input type="text" class="form-control" id="examePixChave" required />
+                <div style="margin-top:6px; font-size:12px; color:#6c757d;">A chave deve ser do beneficiário. Se dependente, do titular responsável.</div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Nota Fiscal do Estabelecimento * (PDF ou JPG até 5MB)</label>
+                <input type="file" class="form-control" id="exameNota" accept=".pdf,.jpg,.jpeg" required />
+                <div style="margin-top:6px; font-size:12px; color:#6c757d;">Deve conter a descrição de todos os exames com valores unitários.</div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Pedido médico legível * (PDF ou JPG até 5MB)</label>
+                <input type="file" class="form-control" id="examePedido" accept=".pdf,.jpg,.jpeg" required />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Documento do Titular (opcional) (PDF ou JPG até 5MB)</label>
+                <input type="file" class="form-control" id="exameDoc" accept=".pdf,.jpg,.jpeg" />
+              </div>
+
+              <div class="btn-group">
+                <button type="submit" class="btn btn-primary">Enviar solicitação</button>
+                <button type="button" class="btn btn-outline" onclick="showSection('reembolso-exames')">Voltar</button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <!-- INDICAÇÃO (HUB) -->
+        <section id="indicacao" class="content-section">
+          <div class="card">
+            <h3 class="card-title">Indicação</h3>
+
+            <div class="info-box">
+              Você pode sugerir novos estabelecimentos para que nossa equipe avalie e, se aprovados, sejam incluídos em nossa rede de atendimento. Nosso objetivo é ampliar as opções disponíveis, garantindo sempre qualidade, segurança e transparência.
+              <div style="height:10px;"></div>
+              <strong>Regras de Indicação:</strong>
+              <p style="margin-top:6px;">Ao indicar um estabelecimento de saúde que seja credenciado pela Amém Saúde, você ganha <strong>4 pontos</strong> no programa de benefícios.</p>
+            </div>
+
+            <div class="btn-group" style="margin-top:0;">
+              <button class="btn btn-primary" onclick="showSection('indicacao-form')">Fazer indicação</button>
+              <button class="btn btn-outline" onclick="showSection('indicacao-retorno')">Retorno de indicações</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- INDICAÇÃO FORM -->
+        <section id="indicacao-form" class="content-section">
+          <div class="card">
+            <h3 class="card-title">Indicação de Estabelecimento</h3>
+            <p class="card-subtitle">Sugira um novo estabelecimento para análise. É rápido, seguro e transparente.</p>
+
+            <div class="info-box">
+              <strong>Limite para Retorno</strong><br/>
+              Até 10/02/2026 (60 dias a partir de hoje)
+            </div>
+
+            <form id="formIndicacao">
+              <div class="form-group">
+                <label class="form-label">Especialidades (opcional)</label>
+                <input type="text" class="form-control" id="indEspecialidades" placeholder="Ex.: Clínica geral, pediatria, ginecologia..." />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Nome do estabelecimento *</label>
+                <input type="text" class="form-control" id="indNome" required />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Telefone (opcional)</label>
+                <input type="text" class="form-control" id="indTelefone" placeholder="(DDD) 0000-0000" />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Estado (UF) *</label>
+                <select class="form-control" id="indUF" required>
+                  <option value="">Selecione</option>
+                  <option>AC</option><option>AL</option><option>AP</option><option>AM</option><option>BA</option>
+                  <option>CE</option><option>DF</option><option>ES</option><option>GO</option><option>MA</option>
+                  <option>MT</option><option>MS</option><option>MG</option><option>PA</option><option>PB</option>
+                  <option>PR</option><option>PE</option><option>PI</option><option>RJ</option><option>RN</option>
+                  <option>RS</option><option>RO</option><option>RR</option><option>SC</option><option>SP</option>
+                  <option>SE</option><option>TO</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Cidade *</label>
+                <input type="text" class="form-control" id="indCidade" required />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Observação (opcional)</label>
+                <textarea class="form-control" id="indObs" rows="4" placeholder="Informações adicionais que possam ajudar na análise"></textarea>
+              </div>
+
+              <div class="btn-group">
+                <button type="submit" class="btn btn-primary">Fazer indicação</button>
+                <button type="button" class="btn btn-outline" onclick="showSection('indicacao')">Retornar ao menu</button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <!-- INDICAÇÃO RETORNO -->
+        <section id="indicacao-retorno" class="content-section">
+          <div class="card">
+            <h3 class="card-title">Retorno de Indicações</h3>
+            <p class="card-subtitle">Para sua comodidade, apresentamos apenas os 5 últimos registros.</p>
+
+            <div class="info-box" style="margin-top:0;">
+              Aqui você acompanha o status das suas indicações mais recentes. Quando houver novidade, atualizaremos esta lista.
+            </div>
+
+            <div class="table-responsive">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Estabelecimento</th>
+                    <th>UF</th>
+                    <th>Cidade</th>
+                    <th>Especialidades</th>
+                    <th>Status</th>
+                    <th>Última atualização</th>
+                  </tr>
+                </thead>
+                <tbody id="indicacoesTbody"></tbody>
+              </table>
+            </div>
+
+            <div class="btn-group">
+              <button class="btn btn-outline" onclick="showSection('indicacao')">Retornar ao menu</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- AJUDA -->
+        <section id="ajuda" class="content-section">
+          <div class="card">
+            <h3 class="card-title">Ajuda</h3>
+
+            <div style="margin-bottom: 20px;">
+              <strong style="color: #183157;">Como solicito um agendamento?</strong>
+              <p style="margin-top: 8px; color: #6c757d; font-size: 14px;">
+                No menu principal, clique em "Solicitar Agendamento Presencial". Selecione a especialidade, informe seu CEP e suas preferências.
+              </p>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+              <strong style="color: #183157;">Qual o valor da coparticipação?</strong>
+              <p style="margin-top: 8px; color: #6c757d; font-size: 14px;">
+                A coparticipação para consultas presenciais é de R$ 25,00.
+              </p>
+            </div>
+
+            <div class="info-box">
+              <strong>Ainda precisa de ajuda?</strong><br />
+              WhatsApp: Entre em contato pelo nosso WhatsApp oficial<br />
+              E-mail: contato@amemsaude.com.br
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Google Maps (opcional: sem key válida, o resto continua funcionando) -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap" async defer></script>
+
+  <script>
+    // ----
+    // Estado (mock) para demo
+    // ----
+    const state = {
+      agendamentos: [
+        {
+          id: "AG-1001",
+          nome: "Maria Flor",
+          especialidade: "Cardiologia",
+          local: "Hospital Santa Luzia",
+          dia: "Quinta-feira",
+          horario: "14:30",
+          localidade: "São Paulo/SP",
+          endereco: "Rua Exemplo, 123 - Centro",
+          status: "Aguardando Confirmação"
+        }
+      ],
+      pagamentos: [
+        {
+          id: "PG-2001",
+          nome: "Maria Flor",
+          especialidade: "Cardiologia",
+          local: "Hospital Santa Luzia",
+          dia: "Quinta-feira",
+          horario: "14:30",
+          localidade: "São Paulo/SP",
+          link: "https://pagamento.exemplo/checkout/PG-2001",
+          status: "Aguardando Confirmação"
+        }
+      ],
+      guias: [
+        {
+          id: "GU-3001",
+          nome: "Maria Flor",
+          especialidade: "Cardiologia",
+          local: "Hospital Santa Luzia",
+          dia: "22/12/2025",
+          horario: "14:30",
+          localidade: "São Paulo/SP",
+          endereco: "Rua Exemplo, 123 - Centro",
+          status: "Disponível"
+        }
+      ],
+      reembolsoConsulta: [
+        {
+          protocolo: "RC-5001",
+          data: "12/12/2025",
+          local: "Clínica Amor e Saúde",
+          especialidade: "Dermatologia",
+          valor: 375.00,
+          status: "Em análise"
+        }
+      ],
+      reembolsoExames: [
+        {
+          protocolo: "RE-5001",
+          data: "12/12/2025",
+          local: "Sabin",
+          exames: "Hemograma",
+          valor: 50.00,
+          status: "Em análise"
+        }
+      ],
+      indicacoes: [
+        {
+          estabelecimento: "Clínica Saúde Total",
+          uf: "GO",
+          cidade: "Luziânia",
+          especialidades: "Clínica geral, Pediatria",
+          status: "Em análise",
+          atualizado: "12/12/2025"
+        },
+        {
+          estabelecimento: "Centro Médico Bem Estar",
+          uf: "DF",
+          cidade: "Brasília",
+          especialidades: "Ortopedia",
+          status: "Aprovada",
+          atualizado: "05/12/2025"
+        }
+      ]
+    };
+
+    // ----
+    // Navegação / Sidebar
+    // ----
+    function setActiveNavItem(sectionId) {
+      document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+      const selector = `.nav-item[onclick*="showSection('${CSS.escape(sectionId)}')"]`;
+      const match = document.querySelector(selector);
+      if (match) match.classList.add('active');
+    }
+
+    function showSection(sectionId) {
+      document.querySelectorAll('.content-section').forEach(section => section.classList.remove('active'));
+      const target = document.getElementById(sectionId);
+      if (target) target.classList.add('active');
+
+      setActiveNavItem(sectionId);
+
+      const titles = {
+        'dados-beneficiario': 'Dados do Beneficiário',
+        home: 'Início',
+        'solicitar-agendamento': 'Solicitar Agendamento',
+        'meus-agendamentos': 'Meus Agendamentos',
+        'cancelar-agendamento': 'Cancelar Agendamento',
+        coparticipacao: 'Coparticipação',
+        guias: 'Guias de Atendimento',
+        'reembolso-consulta': 'Reembolso Consultas',
+        'reembolso-exames': 'Reembolso Exames',
+        'solicitar-reembolso': 'Solicitar Reembolso',
+        'solicitar-reembolso-consulta': 'Solicitar Reembolso (Consulta)',
+        'solicitar-reembolso-exame': 'Solicitar Reembolso (Exames)',
+        indicacao: 'Indicação',
+        'indicacao-form': 'Indicação',
+        'indicacao-retorno': 'Indicação',
+        ajuda: 'Ajuda'
+      };
+      const pageTitle = document.getElementById('pageTitle');
+      if (pageTitle) pageTitle.textContent = titles[sectionId] || 'Portal';
+
+      if (window.innerWidth <= 1024) {
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar && sidebar.classList.contains('active')) toggleSidebar();
+      }
+
+      // re-render quando abre telas
+      if (sectionId === 'meus-agendamentos') renderAgendamentos();
+      if (sectionId === 'cancelar-agendamento') renderCancelamentos();
+      if (sectionId === 'coparticipacao') renderPagamentos();
+      if (sectionId === 'guias') { 
+        renderGuias();
+        atualizarNotificacaoGuias();
+      }
+      if (sectionId === 'reembolso-consulta') renderReembolsoConsulta();
+      if (sectionId === 'reembolso-exames') renderReembolsoExames();
+      if (sectionId === 'indicacao-retorno') renderIndicacoes();
+    }
+
+    function toggleSidebar() {
+      document.getElementById('sidebar')?.classList.toggle('active');
+      document.getElementById('sidebarOverlay')?.classList.toggle('active');
+    }
+
+    function logout() {
+      if (confirm('Deseja realmente sair?')) {
+        alert('Sessão encerrada com sucesso!');
+      }
+    }
+
+    // ----
+    // Collapsible
+    // ----
+    function toggleCollapsible(id) {
+      const content = document.getElementById(id);
+      const arrow = document.getElementById('arrow' + id.charAt(0).toUpperCase() + id.slice(1));
+      if (content && arrow) {
+        content.classList.toggle('open');
+        arrow.classList.toggle('open');
+      }
+    }
+
+    // ----
+    // Máscaras
+    // ----
+    function maskCEP(raw) {
+      let v = (raw || '').replace(/\D/g, '').slice(0, 8);
+      if (v.length > 5) v = v.replace(/(\d{2})(\d{3})(\d{0,3})/, '$1.$2-$3');
+      else if (v.length > 2) v = v.replace(/(\d{2})(\d{0,3})/, '$1.$2');
+      return v;
+    }
+
+    function maskCPF(raw) {
+      let v = (raw || '').replace(/\D/g, '').slice(0, 11);
+      if (v.length > 9) v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{0,2})/, '$1.$2.$3-$4');
+      else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{0,3})/, '$1.$2.$3');
+      else if (v.length > 3) v = v.replace(/(\d{3})(\d{0,3})/, '$1.$2');
+      return v;
+    }
+
+    function formatBRL(value) {
+      const n = Number(value || 0);
+      return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+
+    function validarCPF(cpf) {
+      cpf = cpf.replace(/\D/g, '');
+      if (cpf.length !== 11) return false;
+      // validação básica (mock)
+      return true;
+    }
+
+    // ----
+    // Carrossel infinito (loop)
+    // ----
+    let carousel = {
+      ready: false,
+      track: null,
+      container: null,
+      step: 0,
+      index: 0,
+      originalCount: 0,
+      transitioning: false
+    };
+
+    function setupInfiniteCarousel() {
+      const track = document.getElementById('carouselTrack');
+      const container = document.getElementById('carouselContainer');
+      if (!track || !container) return;
+
+      if (carousel.ready) return;
+
+      const children = Array.from(track.children);
+      carousel.originalCount = children.length;
+      if (carousel.originalCount === 0) return;
+
+      const card = children[0];
+      const gap = parseFloat(getComputedStyle(track).gap || '20');
+      const cardWidth = card.getBoundingClientRect().width;
+      carousel.step = cardWidth + gap;
+
+      const prependClones = children.map(n => n.cloneNode(true));
+      const appendClones = children.map(n => n.cloneNode(true));
+
+      prependClones.forEach(cl => track.insertBefore(cl, track.firstChild));
+      appendClones.forEach(cl => track.appendChild(cl));
+
+      carousel.track = track;
+      carousel.container = container;
+      carousel.index = carousel.originalCount;
+      carousel.ready = true;
+
+      track.style.transition = 'none';
+      track.style.transform = `translateX(${-carousel.index * carousel.step}px)`;
+      requestAnimationFrame(() => {
+        track.style.transition = 'transform .45s ease';
+      });
+
+      track.addEventListener('transitionend', () => {
+        if (!carousel.ready) return;
+
+        if (carousel.index >= carousel.originalCount * 2) {
+          carousel.track.style.transition = 'none';
+          carousel.index = carousel.originalCount;
+          carousel.track.style.transform = `translateX(${-carousel.index * carousel.step}px)`;
+          requestAnimationFrame(() => {
+            carousel.track.style.transition = 'transform .45s ease';
+          });
+        }
+
+        if (carousel.index < carousel.originalCount) {
+          carousel.track.style.transition = 'none';
+          carousel.index = carousel.originalCount * 2 - 1;
+          carousel.track.style.transform = `translateX(${-carousel.index * carousel.step}px)`;
+          requestAnimationFrame(() => {
+            carousel.track.style.transition = 'transform .45s ease';
+          });
+        }
+      });
+
+      window.addEventListener('resize', () => {
+        if (!carousel.ready) return;
+        const firstReal = carousel.track.children[carousel.originalCount];
+        const gap2 = parseFloat(getComputedStyle(carousel.track).gap || '20');
+        const w2 = firstReal.getBoundingClientRect().width;
+        carousel.step = w2 + gap2;
+
+        carousel.track.style.transition = 'none';
+        carousel.track.style.transform = `translateX(${-carousel.index * carousel.step}px)`;
+        requestAnimationFrame(() => {
+          carousel.track.style.transition = 'transform .45s ease';
+        });
+      });
+    }
+
+    function moveCarousel(direction) {
+      if (!carousel.ready) setupInfiniteCarousel();
+      if (!carousel.ready) return;
+
+      carousel.index += direction;
+      carousel.track.style.transform = `translateX(${-carousel.index * carousel.step}px)`;
+    }
+
+    // ----
+    // CEP + Mapa
+    // ----
+    let map = null;
+    let mapMarker = null;
+
+    function initMap() {
+      try {
+        if (!window.google || !google.maps) return;
+        const mapEl = document.getElementById('map');
+        if (!mapEl) return;
+
+        map = new google.maps.Map(mapEl, {
+          center: { lat: -15.7801, lng: -47.9292 },
+          zoom: 12
+        });
+      } catch (e) {
+        console.warn('Mapa não inicializado:', e);
+      }
+    }
+
+    async function buscarCEP() {
+      const cepEl = document.getElementById('cep');
+      const resultEl = document.getElementById('cepResult');
+      if (!cepEl) return;
+
+      const cep = cepEl.value.replace(/\D/g, '');
+      if (cep.length !== 8) {
+        alert('CEP inválido. Informe 8 dígitos.');
+        return;
+      }
+
+      try {
+        const resp = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+        const data = await resp.json();
+        if (data.erro) {
+          alert('CEP não encontrado.');
+          return;
+        }
+
+        const address = `${data.logradouro || ''}, ${data.bairro || ''}, ${data.localidade || ''}/${data.uf || ''}`.replace(/\s+,/g, ',').trim();
+        if (resultEl) resultEl.textContent = `CEP digitado: ${cepEl.value} | Endereço: ${address}`;
+
+        // Mostrar locais somente se CEP OK + especialidade preenchida
+        const esp = document.getElementById('especialidade')?.value || '';
+        if (esp) {
+          document.getElementById('locaisContainer').style.display = 'block';
+        }
+
+        if (!window.google || !google.maps || !map) {
+          alert(`CEP encontrado:\n${address}`);
+          return;
+        }
+
+        const geocoder = new google.maps.Geocoder();
+        geocoder.geocode({ address }, function (results, status) {
+          if (status === 'OK' && results && results[0]) {
+            map.setCenter(results[0].geometry.location);
+            if (mapMarker) mapMarker.setMap(null);
+            mapMarker = new google.maps.Marker({
+              map: map,
+              position: results[0].geometry.location,
+              title: 'Local aproximado'
+            });
+          } else {
+            alert('Não foi possível localizar o endereço no mapa.');
+          }
+        });
+      } catch (err) {
+        alert('Erro ao buscar CEP.');
+        console.error(err);
+      }
+    }
+
+    // ----
+    // Location Selection
+    // ----
+    let selectedLocation = null;
+    let selectedLocationName = '';
+
+    function selectLocation(name, lat, lng, ev) {
+      selectedLocation = { lat, lng };
+      selectedLocationName = name;
+
+      const cards = document.querySelectorAll('.location-card');
+      cards.forEach(card => card.classList.remove('selected'));
+      if (ev && ev.currentTarget) {
+        ev.currentTarget.classList.add('selected');
+      }
+
+      const localInput = document.getElementById('localSelecionado');
+      if (localInput) localInput.value = name;
+
+      // Update map
+      if (map && window.google && google.maps) {
+        map.setCenter({ lat, lng });
+        if (mapMarker) mapMarker.setMap(null);
+        mapMarker = new google.maps.Marker({
+          map: map,
+          position: { lat, lng },
+          title: name
+        });
+      }
+    }
+
+    // ----
+    // Render tabelas (mock)
+    // ----
+    function badgeForStatus(status) {
+      const s = (status || '').toLowerCase();
+      if (s.includes('aguardando')) return `<span class="badge badge-warning">${status}</span>`;
+      if (s.includes('confirmado') || s.includes('disponível') || s.includes('aprovada')) return `<span class="badge badge-success">${status}</span>`;
+      if (s.includes('não confirmado') || s.includes('reprovada') || s.includes('expirado') || s.includes('cancelado')) return `<span class="badge badge-danger">${status}</span>`;
+      if (s.includes('análise')) return `<span class="badge badge-info">${status}</span>`;
+      return `<span class="badge badge-neutral">${status}</span>`;
+    }
+
+    function renderAgendamentos() {
+      const tbody = document.getElementById('agendamentosTbody');
+      if (!tbody) return;
+
+      const rows = state.agendamentos.slice(0, 5).map(a => `
+        <tr>
+          <td>${a.nome}</td>
+          <td>${a.especialidade}</td>
+          <td>${a.local}</td>
+          <td>${a.dia}</td>
+          <td>${a.horario}</td>
+          <td>${a.localidade}</td>
+          <td>${badgeForStatus(a.status)}</td>
+        </tr>
+      `).join('');
+
+      tbody.innerHTML = rows || `
+        <tr><td colspan="7" style="text-align:center; color:#6c757d;">Nenhum agendamento em aberto no momento.</td></tr>
+      `;
+    }
+
+    function renderCancelamentos() {
+      const tbody = document.getElementById('cancelarTbody');
+      if (!tbody) return;
+
+      const rows = state.agendamentos.slice(0, 5).map(a => `
+        <tr>
+          <td>${a.nome}</td>
+          <td>${a.especialidade}</td>
+          <td>${a.local}</td>
+          <td>${a.dia}</td>
+          <td>${a.horario}</td>
+          <td>${a.localidade}</td>
+          <td>
+            <button class="btn btn-danger" onclick="cancelarAgendamento('${a.id}')">Cancelar</button>
+          </td>
+        </tr>
+      `).join('');
+
+      tbody.innerHTML = rows || `<tr><td colspan="7" style="text-align:center; color:#6c757d;">Nenhum agendamento em aberto no momento que pode ser cancelado.</td></tr>`;
+    }
+
+    function cancelarAgendamento(id) {
+      if (!confirm('Deseja realmente cancelar este agendamento?')) return;
+      state.agendamentos = state.agendamentos.filter(x => x.id !== id);
+      alert('Agendamento cancelado com sucesso!');
+      renderCancelamentos();
+      renderAgendamentos();
+      atualizarNotificacaoGuias();
+    }
+
+    function renderPagamentos() {
+      const tbody = document.getElementById('pagamentosTbody');
+      if (!tbody) return;
+
+      tbody.innerHTML = state.pagamentos.slice(0, 5).map(p => {
+        const expired = (p.status === 'Link expirado' || p.status === 'Cancelado');
+        return `
+        <tr>
+          <td>${p.nome}</td>
+          <td>${p.especialidade}</td>
+          <td>${p.local}</td>
+          <td>${p.dia}</td>
+          <td>${p.horario}</td>
+          <td>${p.localidade}</td>
+          <td><a href="${p.link}" target="_blank" rel="noopener">Abrir link</a></td>
+          <td>${badgeForStatus(p.status)}</td>
+          <td>
+            ${!expired ? `<button class="btn btn-primary" onclick="abrirFluxoPagamento('${p.id}')">Pagar</button>
+            <button class="btn btn-primary" onclick="cancelarLinkPagamento('${p.id}')" style="margin-top:6px;">Cancelar link</button>` : '<span style="color:#999;">—</span>'}
+          </td>
+        </tr>
+      `}).join('') || `<tr><td colspan="9" style="text-align:center; color:#6c757d;">Nenhum pagamento de coparticipação disponível agora.</td></tr>`;
+    }
+
+    function cancelarLinkPagamento(id) {
+      if (!confirm('Deseja realmente cancelar este link de pagamento?')) return;
+      const p = state.pagamentos.find(x => x.id === id);
+      if (p) {
+        p.status = 'Cancelado';
+        alert('Link de pagamento cancelado.');
+        renderPagamentos();
+      }
+    }
+
+    function renderGuias() {
+      const tbody = document.getElementById('guiasTbody');
+      if (!tbody) return;
+
+      tbody.innerHTML = state.guias.slice(0, 5).map(g => `
+        <tr>
+          <td>${g.nome}</td>
+          <td>${g.especialidade}</td>
+          <td>${g.local}</td>
+          <td>${g.dia}</td>
+          <td>${g.horario}</td>
+          <td>${g.localidade}</td>
+          <td>${g.endereco}</td>
+          <td><button class="btn btn-primary" onclick="visualizarGuia('${g.id}')">Visualizar Guia</button></td>
+        </tr>
+      `).join('') || `<tr><td colspan="8" style="text-align:center; color:#6c757d;">Nenhuma guia disponível agora.</td></tr>`;
+    }
+
+    function visualizarGuia(id) {
+      const g = state.guias.find(x => x.id === id);
+      if (!g) return;
+
+      openModal(
+        'Guia de Atendimento',
+        `
+          <div class="guia-document">
+            <div class="guia-header">
+              <img src="01.png" alt="Amém Saúde">
+              <div>
+                <h2>Guia de Atendimento</h2>
+                <p>Protocolo: ${g.id}</p>
+              </div>
+            </div>
+            <div class="guia-info">
+              <p><strong>Titular:</strong> ${g.nome}</p>
+              <p><strong>Especialidade:</strong> ${g.especialidade}</p>
+              <p><strong>Data:</strong> <strong>22/12/2025</strong></p>
+              <p><strong>Horário:</strong> ${g.horario}</p>
+              <p><strong>Local:</strong> ${g.local}</p>
+              <p><strong>Endereço:</strong> ${g.endereco}</p>
+            </div>
+            <div class="alert alert-info">
+              <strong>Importante:</strong> Apresente esta guia no local do atendimento junto com um documento de identificação com foto.
+            </div>
+            <button class="btn btn-primary" onclick="window.print()">Baixar PDF</button>
+          </div>
+        `
+      );
+    }
+
+    function renderReembolsoConsulta() {
+      const tbody = document.getElementById('reembolsoConsultaTbody');
+      if (!tbody) return;
+
+      tbody.innerHTML = state.reembolsoConsulta.slice(0,5).map(r => `
+        <tr>
+          <td>${r.protocolo}</td>
+          <td>${r.data}</td>
+          <td>${r.local}</td>
+          <td>${r.especialidade}</td>
+          <td>${formatBRL(r.valor)}</td>
+          <td>${badgeForStatus(r.status)}</td>
+        </tr>
+      `).join('') || `<tr><td colspan="6" style="text-align:center; color:#6c757d;">Não há processos de reembolso.</td></tr>`;
+    }
+
+    function renderReembolsoExames() {
+      const tbody = document.getElementById('reembolsoExamesTbody');
+      if (!tbody) return;
+
+      tbody.innerHTML = state.reembolsoExames.slice(0,5).map(r => `
+        <tr>
+          <td>${r.protocolo}</td>
+          <td>${r.data}</td>
+          <td>${r.local}</td>
+          <td>${r.exames}</td>
+          <td>${formatBRL(r.valor)}</td>
+          <td>${badgeForStatus(r.status)}</td>
+        </tr>
+      `).join('') || `<tr><td colspan="6" style="text-align:center; color:#6c757d;">Não há processos de reembolso.</td></tr>`;
+    }
+
+    function renderIndicacoes() {
+      const tbody = document.getElementById('indicacoesTbody');
+      if (!tbody) return;
+
+      tbody.innerHTML = state.indicacoes.slice(0,5).map(i => `
+        <tr>
+          <td>${i.estabelecimento}</td>
+          <td>${i.uf}</td>
+          <td>${i.cidade}</td>
+          <td>${i.especialidades}</td>
+          <td>${badgeForStatus(i.status)}</td>
+          <td>${i.atualizado}</td>
+        </tr>
+      `).join('') || `<tr><td colspan="6" style="text-align:center; color:#6c757d;">Ainda não existe indicação feita por você.</td></tr>`;
+    }
+
+    // ----
+    // Notificação das guias (sino)
+    // ----
+    function atualizarNotificacaoGuias() {
+      const bell = document.getElementById('guiaNotificationBell');
+      if (!bell) return;
+      const temGuiaDisponivel = state.guias.some(g => (g.status || '').toLowerCase().includes('dispon'));
+      bell.style.display = temGuiaDisponivel ? 'inline-flex' : 'none';
+    }
+
+    // ----
+    // Modal
+    // ----
+    function openModal(title, html) {
+      document.getElementById('modalTitle').textContent = title;
+      document.getElementById('modalBody').innerHTML = html;
+      const ov = document.getElementById('modalOverlay');
+      ov.classList.add('active');
+      ov.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeModal() {
+      const ov = document.getElementById('modalOverlay');
+      ov.classList.remove('active');
+      ov.setAttribute('aria-hidden', 'true');
+    }
+
+    function openRegrasConsulta() {
+      openModal(
+        'Regras — Reembolso de Consulta',
+        `
+          <h4>Procedimento Operacional – Reembolso de Consulta</h4>
+          <p><strong>Leia com atenção antes de enviar seus documentos.</strong></p>
+
+          <h4>Condição de Elegibilidade</h4>
+          <ul>
+            <li>Reembolso é excepcional quando não há viabilidade de agendamento dentro das regras internas.</li>
+            <li>A liberação depende de análise operacional registrada no sistema.</li>
+          </ul>
+
+          <h4>Valor e Limite do Reembolso</h4>
+          <ul>
+            <li>Vinculado ao limite do plano (R$ 400,00).</li>
+            <li>Será descontada a coparticipação de R$ 25,00.</li>
+            <li>Não há reembolso acima do limite mesmo que a consulta tenha custado mais.</li>
+          </ul>
+
+          <h4>Documentação Obrigatória</h4>
+          <ul>
+            <li>Nota Fiscal emitida pela clínica ou profissional.</li>
+            <li>Discriminar a especialidade (ex.: "Consulta Cardiologista").</li>
+            <li>Em nome do beneficiário; se dependente, pode ser em nome do titular com comprovação.</li>
+            <li>Data dentro do período autorizado.</li>
+          </ul>
+
+          <h4>Prazo</h4>
+          <ul>
+            <li>Até 30 dias corridos para envio após a liberação.</li>
+            <li>Após o prazo, expira automaticamente.</li>
+          </ul>
+
+          <h4>Pagamento</h4>
+          <ul>
+            <li>Via PIX em nome do beneficiário.</li>
+            <li>Valor da consulta menos coparticipação (R$ 25,00).</li>
+            <li>Necessário estar adimplente e sem carência ativa no pagamento.</li>
+            <li>O pagamento será realizado em até 7 dias úteis após o envio completo da documentação.</li>
+          </ul>
+        `
+      );
+    }
+
+    function openRegrasExames() {
+      openModal(
+        'Regras — Reembolso de Exames',
+        `
+          <h4>Regras para Reembolso de Exames</h4>
+          <p><strong>Documentos obrigatórios</strong></p>
+          <ul>
+            <li>Nota fiscal com descrição detalhada dos serviços realizados.</li>
+            <li>Pedido médico original ou cópia legível.</li>
+          </ul>
+
+          <p style="margin-top:12px;"><strong>Requisitos da nota fiscal</strong></p>
+          <ul>
+            <li>Deve conter a descrição de todos os exames do pedido médico com seus valores unitários.</li>
+            <li>Exemplo: Hemograma completo R$ 30,00. Exame de urina R$ 20,00.</li>
+            <li>Se o pedido tiver vários exames, o cálculo do reembolso considera o somatório dos valores listados.</li>
+            <li>A emissão deve ter data de até 10 dias anteriores ao envio.</li>
+            <li>A nota fiscal deve estar em nome do beneficiário. Em caso de dependente, pode estar em nome do titular com comprovação do vínculo.</li>
+            <li>A data da nota deve estar dentro do período autorizado.</li>
+          </ul>
+
+          <p style="margin-top:12px;"><strong>Regras de valor do reembolso</strong></p>
+          <ul>
+            <li>De R$ 1,00 a R$ 50,00: reembolso de 100% do valor.</li>
+            <li>De R$ 50,01 a R$ 500,00: reembolso de 40% do valor.</li>
+            <li>Acima de R$ 500,00: reembolso fixo de R$ 150,00.</li>
+            <li>Limite máximo de R$ 150,00 por utilização.</li>
+          </ul>
+
+          <p style="margin-top:12px;"><strong>Frequência</strong></p>
+          <ul>
+            <li>Frequência máxima de 1 reembolso de exame por mês.</li>
+          </ul>
+
+          <p style="margin-top:12px;"><strong>Pagamento</strong></p>
+          <ul>
+            <li>O reembolso é realizado via PIX em nome do beneficiário.</li>
+            <li>É necessário estar adimplente e sem carência ativa.</li>
+            <li>O valor pago considera a nota fiscal menos a coparticipação, quando houver.</li>
+            <li>O pagamento é realizado em até 7 dias úteis após o envio completo da documentação.</li>
+          </ul>
+        `
+      );
+    }
+
+    // Fluxo pagamento (ecommerce demo)
+    function abrirFluxoPagamento(id) {
+      const p = state.pagamentos.find(x => x.id === id);
+      if (!p) return;
+
+      const expired = (p.status === 'Link expirado' || p.status === 'Cancelado');
+
+      openModal(
+        'Pagamento — Coparticipação',
+        `
+          <p><strong>Pedido:</strong> ${p.id}</p>
+          <p><strong>Beneficiário:</strong> ${p.nome}</p>
+          <p><strong>Serviço:</strong> ${p.especialidade} — ${p.dia} às ${p.horario} — ${p.local} (${p.localidade})</p>
+          <div style="height:10px;"></div>
+
+          <div class="stepper">
+            <div class="step ${p.status === 'Aguardando Confirmação' ? 'active' : 'done'}">1. Checkout</div>
+            <div class="step ${p.status === 'Pagamento Confirmado' ? 'active done' : ''}">2. Pagamento</div>
+            <div class="step ${p.status === 'Pagamento Confirmado' ? 'active done' : ''}">3. Confirmação</div>
+          </div>
+
+          <div class="info-box" style="margin-top:0;">
+            <strong>Status atual:</strong> ${badgeForStatus(p.status)}
+            <div style="margin-top:8px; color:#6c757d; font-size:13px;">
+              Este é um fluxo de demonstração para visualização.
+            </div>
+          </div>
+
+          <div class="btn-group" style="margin-top:0;">
+            <button class="btn btn-primary" ${expired ? 'disabled style="opacity:.6; cursor:not-allowed;"' : ''} onclick="simularPagamento('${p.id}')">Simular pagamento</button>
+            <button class="btn btn-outline" onclick="closeModal()">Fechar</button>
+          </div>
+        `
+      );
+    }
+
+    function simularPagamento(id) {
+      const p = state.pagamentos.find(x => x.id === id);
+      if (!p) return;
+
+      if (p.status === 'Link expirado' || p.status === 'Cancelado') {
+        alert('Link expirado ou cancelado. É necessário fazer uma nova solicitação.');
+        return;
+      }
+
+      // alterna status para demo
+      if (p.status === 'Aguardando Confirmação') {
+        p.status = 'Pagamento Confirmado';
+      } else if (p.status === 'Pagamento Confirmado') {
+        p.status = 'Pagamento não confirmado';
+      } else if (p.status === 'Pagamento não confirmado') {
+        p.status = 'Aguardando Confirmação';
+      }
+
+      closeModal();
+      renderPagamentos();
+      alert('Status de pagamento atualizado (demonstração).');
+    }
+
+    // ----
+    // Reembolso: cálculos
+    // ----
+    const COPARTICIPACAO_CONSULTA = 25.00;
+    const LIMITE_PLANO_CONSULTA = 400.00;
+
+    function calcEstimativaConsulta(valor) {
+      const v = Math.max(0, Number(valor || 0));
+      const base = Math.max(0, v - COPARTICIPACAO_CONSULTA);
+      return Math.min(base, LIMITE_PLANO_CONSULTA);
+    }
+
+    function calcEstimativaExame(valor) {
+      const v = Math.max(0, Number(valor || 0));
+      let reembolso = 0;
+      if (v >= 1 && v <= 50) reembolso = v;
+      else if (v > 50 && v <= 500) reembolso = v * 0.40;
+      else if (v > 500) reembolso = 150;
+      reembolso = Math.min(reembolso, 150);
+      return reembolso;
+    }
+
+    // ----
+    // Init / bindings
+    // ----
+    document.addEventListener('DOMContentLoaded', () => {
+      // CEP mask
+      const cepInput = document.getElementById('cep');
+      if (cepInput) {
+        cepInput.addEventListener('input', e => {
+          e.target.value = maskCEP(e.target.value);
+        });
+      }
+
+      // CEP mask em Dados do Beneficiário
+      const benefCep = document.getElementById('benefCep');
+      if (benefCep) {
+        benefCep.addEventListener('input', e => {
+          e.target.value = maskCEP(e.target.value);
+        });
+      }
+
+      // Form Dados do Beneficiário
+      document.getElementById('formDadosBeneficiario')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        alert('Dados do beneficiário salvos com sucesso!');
+      });
+
+      // Quando mudar a especialidade, se CEP já OK, libera locais
+      const espSelect = document.getElementById('especialidade');
+      if (espSelect) {
+        espSelect.addEventListener('change', () => {
+          const cepVal = document.getElementById('cep')?.value.replace(/\D/g, '') || '';
+          if (cepVal.length === 8 && espSelect.value) {
+            document.getElementById('locaisContainer').style.display = 'block';
+          } else {
+            document.getElementById('locaisContainer').style.display = 'none';
+            const localSel = document.getElementById('localSelecionado');
+            if (localSel) localSel.value = '';
+          }
+        });
+      }
+
+      // Carousel setup
+      setupInfiniteCarousel();
+
+      // render inicial
+      renderAgendamentos();
+      renderCancelamentos();
+      renderPagamentos();
+      renderGuias();
+      renderReembolsoConsulta();
+      renderReembolsoExames();
+      renderIndicacoes();
+      atualizarNotificacaoGuias();
+
+      // Form agendamento
+      document.getElementById('formAgendamento')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        const esp = document.getElementById('especialidade').value;
+        const dia = document.getElementById('prefDia').value;
+        const periodo = document.getElementById('prefPeriodo').value;
+        const local = document.getElementById('localSelecionado').value;
+
+        if (!local) {
+          alert('Selecione um local para a consulta antes de enviar o agendamento.');
+          return;
+        }
+
+        const novo = {
+          id: "AG-" + Math.floor(Math.random() * 9000 + 1000),
+          nome: "Maria Flor",
+          especialidade: esp,
+          local: local,
+          dia: dia,
+          horario: (periodo === 'Manhã' ? '09:30' : (periodo === 'Tarde' ? '14:30' : '19:00')),
+          localidade: "São Paulo/SP",
+          endereco: "Rua Exemplo, 123 - Centro",
+          status: "Aguardando Confirmação"
+        };
+
+        state.agendamentos.unshift(novo);
+        alert('Solicitação enviada com sucesso!');
+        showSection('meus-agendamentos');
+      });
+
+      // Reembolso consulta: atualização estimativa
+      const consultaValor = document.getElementById('consultaValor');
+      if (consultaValor) {
+        consultaValor.addEventListener('input', () => {
+          const est = calcEstimativaConsulta(consultaValor.value);
+          document.getElementById('consultaEstimativa').textContent = formatBRL(est);
+        });
+      }
+
+      // Reembolso exame: atualização estimativa
+      const exameValor = document.getElementById('exameValor');
+      if (exameValor) {
+        exameValor.addEventListener('input', () => {
+          const est = calcEstimativaExame(exameValor.value);
+          document.getElementById('exameEstimativa').textContent = formatBRL(est);
+        });
+      }
+
+      // Form reembolso consulta submit
+      document.getElementById('formReembolsoConsulta')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const esp = document.getElementById('consultaEspecialidade').value;
+        const val = Number(document.getElementById('consultaValor').value || 0);
+        const prot = "RC-" + Math.floor(Math.random() * 9000 + 1000);
+
+        state.reembolsoConsulta.unshift({
+          protocolo: prot,
+          data: new Date().toLocaleDateString('pt-BR'),
+          local: 'Clínica Exemplo',
+          especialidade: esp,
+          valor: val,
+          status: "Em análise"
+        });
+
+        alert('Solicitação enviada com sucesso!');
+        showSection('reembolso-consulta');
+      });
+
+      // Form reembolso exame submit
+      document.getElementById('formReembolsoExame')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        alert('Solicitação enviada com sucesso!');
+        showSection('reembolso-exames');
+      });
+
+      // Form indicação submit
+      document.getElementById('formIndicacao')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        const emAnalise = state.indicacoes.filter(i => i.status === 'Em análise').length;
+        if (emAnalise >= 5) {
+          alert('Limite atingido: você já possui 5 sugestões em análise.');
+          return;
+        }
+
+        state.indicacoes.unshift({
+          estabelecimento: document.getElementById('indNome').value,
+          uf: document.getElementById('indUF').value,
+          cidade: document.getElementById('indCidade').value,
+          especialidades: document.getElementById('indEspecialidades').value || '-',
+          status: 'Em análise',
+          atualizado: new Date().toLocaleDateString('pt-BR')
+        });
+
+        alert('Indicação enviada com sucesso!');
+        showSection('indicacao-retorno');
+      });
+
+      // fechar modal clicando fora
+      document.getElementById('modalOverlay')?.addEventListener('click', (e) => {
+        if (e.target.id === 'modalOverlay') closeModal();
+      });
+    });
+  </script>
+</body>
+</html>
