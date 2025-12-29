@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
-import { X, Menu, LogOut } from 'lucide-react'
+import { X, Menu, LogOut, Bell, User, ChevronRight } from 'lucide-react'
 
 const menuItems = [
   { path: '/cliente', label: 'Início', section: 'MENU PRINCIPAL' },
@@ -118,27 +118,64 @@ export const ClienteLayout = () => {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden lg:ml-[280px]">
-        {/* Top Header */}
-        <header className="bg-white px-10 py-5 shadow-header flex-shrink-0 flex items-center justify-between">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="lg:hidden text-secondary-900 hover:text-primary"
-          >
-            {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
+        {/* Top Header - Mais Moderno */}
+        <header className="bg-white border-b border-gray-100 flex-shrink-0 sticky top-0 z-30 backdrop-blur-sm bg-white/95">
+          <div className="px-6 sm:px-10 py-4">
+            <div className="flex items-center justify-between gap-4">
+              {/* Left Side */}
+              <div className="flex items-center gap-4 flex-1 min-w-0">
+                <button
+                  onClick={() => setSidebarOpen(!sidebarOpen)}
+                  className="lg:hidden text-secondary-900 hover:text-primary p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  {sidebarOpen ? <X size={22} /> : <Menu size={22} />}
+                </button>
 
-          <h1 className="text-[26px] font-bold text-secondary-900">
-            {menuItems.find(item => item.path === location.pathname)?.label || 'Portal do Beneficiário'}
-          </h1>
+                <div className="min-w-0 flex-1">
+                  {/* Breadcrumb */}
+                  <div className="flex items-center gap-2 text-xs text-text-secondary mb-1">
+                    <span>Portal</span>
+                    <ChevronRight size={14} />
+                    <span className="text-primary font-medium truncate">
+                      {menuItems.find(item => item.path === location.pathname)?.label || 'Início'}
+                    </span>
+                  </div>
+                  <h1 className="text-xl sm:text-2xl font-bold text-secondary-900 truncate">
+                    {menuItems.find(item => item.path === location.pathname)?.label || 'Portal do Beneficiário'}
+                  </h1>
+                </div>
+              </div>
 
-          <div className="hidden sm:block text-sm text-text-secondary">
-            Olá, <span className="font-semibold text-text-primary">{user?.nome.split(' ')[0]}</span>
+              {/* Right Side - User Actions */}
+              <div className="flex items-center gap-2 sm:gap-3">
+                {/* Notifications */}
+                <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors group">
+                  <Bell size={20} className="text-gray-600 group-hover:text-primary transition-colors" />
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-danger-500 rounded-full ring-2 ring-white"></span>
+                </button>
+
+                {/* User Avatar */}
+                <div className="hidden sm:flex items-center gap-3 pl-3 border-l border-gray-200">
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-text-primary leading-tight">
+                      {user?.nome.split(' ')[0]}
+                    </p>
+                    <p className="text-xs text-text-secondary">Beneficiário</p>
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-gradient-avatar flex items-center justify-center text-white font-bold shadow-sm ring-2 ring-white">
+                    {user?.nome.charAt(0).toUpperCase()}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </header>
 
         {/* Content Wrapper */}
-        <div className="flex-1 overflow-y-auto px-10 py-8 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
-          <Outlet />
+        <div className="flex-1 overflow-y-auto px-6 sm:px-10 py-6 sm:py-8 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent bg-gradient-to-br from-gray-50 to-white">
+          <div className="max-w-[1400px] mx-auto">
+            <Outlet />
+          </div>
         </div>
       </main>
     </div>
