@@ -12,17 +12,45 @@ import {
   LogOut,
   Menu,
   X,
-  Heart,
+  ClipboardList,
+  MapPin,
 } from 'lucide-react'
 
-const menuItems = [
-  { path: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
-  { path: '/admin/clientes', icon: Users, label: 'Clientes' },
-  { path: '/admin/agendamentos', icon: Calendar, label: 'Agendamentos' },
-  { path: '/admin/reembolsos', icon: FileText, label: 'Reembolsos' },
-  { path: '/admin/financeiro', icon: DollarSign, label: 'Financeiro' },
-  { path: '/admin/estabelecimentos', icon: Building2, label: 'Estabelecimentos' },
-  { path: '/admin/configuracoes', icon: Settings, label: 'Configurações' },
+const menuSections = [
+  {
+    title: 'PRINCIPAL',
+    items: [
+      { path: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
+    ],
+  },
+  {
+    title: 'GERENCIAMENTO',
+    items: [
+      { path: '/admin/clientes', icon: Users, label: 'Clientes' },
+      { path: '/admin/empresas', icon: Building2, label: 'Empresas' },
+      { path: '/admin/estabelecimentos', icon: MapPin, label: 'Estabelecimentos' },
+    ],
+  },
+  {
+    title: 'OPERACIONAL',
+    items: [
+      { path: '/admin/agendamentos', icon: Calendar, label: 'Agendamentos' },
+      { path: '/admin/reembolsos', icon: FileText, label: 'Reembolsos' },
+      { path: '/admin/indicacoes', icon: ClipboardList, label: 'Indicações' },
+    ],
+  },
+  {
+    title: 'FINANCEIRO',
+    items: [
+      { path: '/admin/financeiro', icon: DollarSign, label: 'Financeiro' },
+    ],
+  },
+  {
+    title: 'SISTEMA',
+    items: [
+      { path: '/admin/configuracoes', icon: Settings, label: 'Configurações' },
+    ],
+  },
 ]
 
 export const AdminLayout = () => {
@@ -32,86 +60,102 @@ export const AdminLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const handleLogout = async () => {
-    await logout()
-    navigate('/login')
+    if (confirm('Deseja realmente sair?')) {
+      await logout()
+      navigate('/login')
+    }
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Header */}
-      <header className="bg-white shadow-sm fixed top-0 left-0 right-0 z-40">
-        <div className="flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="lg:hidden text-gray-600 hover:text-gray-900"
-            >
-              {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
-            <div className="flex items-center gap-2">
-              <Heart className="w-6 h-6 text-primary-600" />
-              <span className="font-bold text-lg text-gray-900">Amém Saúde - Admin</span>
-            </div>
-          </div>
-
-          <div className="text-sm font-medium text-gray-700">
-            {user?.nome}
-          </div>
-        </div>
-      </header>
-
+    <div className="flex h-screen overflow-hidden bg-[#f5f7fa]">
       {/* Sidebar */}
       <aside
         className={`
-          fixed top-0 left-0 h-full bg-gray-900 text-white z-50 w-64 transform transition-transform duration-300
-          lg:translate-x-0 lg:mt-[57px]
+          fixed top-0 left-0 h-full bg-gradient-admin text-white z-50
+          w-[280px] flex-shrink-0 transition-transform duration-300 ease-in-out
+          overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent
+          shadow-sidebar
+          lg:translate-x-0
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
       >
-        <nav className="p-4 space-y-1 mt-14 lg:mt-0">
-          {menuItems.map((item) => {
-            const Icon = item.icon
-            const isActive = location.pathname === item.path
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                onClick={() => setSidebarOpen(false)}
-                className={`
-                  flex items-center gap-3 px-4 py-3 rounded-lg transition-colors
-                  ${isActive
-                    ? 'bg-primary-600 text-white'
-                    : 'text-gray-300 hover:bg-gray-800'
-                  }
-                `}
-              >
-                <Icon size={20} />
-                <span>{item.label}</span>
-              </Link>
-            )
-          })}
+        {/* Logo */}
+        <div className="px-6 pt-8 pb-8 border-b border-white/10 mb-8">
+          <div className="bg-white p-4 rounded-xl text-center">
+            <h1 className="text-primary font-bold text-2xl">Amém Saúde</h1>
+            <p className="text-secondary text-[11px] mt-1 font-medium">Sistema Administrativo</p>
+          </div>
+        </div>
 
+        {/* Menu */}
+        <nav>
+          {menuSections.map((section) => (
+            <div key={section.title} className="mb-6">
+              <div className="px-6 text-white/50 text-[11px] font-semibold uppercase tracking-wide mb-2.5">
+                {section.title}
+              </div>
+              {section.items.map((item) => {
+                const Icon = item.icon
+                const isActive = location.pathname === item.path
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`
+                      flex items-center px-6 py-3 transition-all duration-300
+                      border-l-[3px]
+                      ${isActive
+                        ? 'bg-primary/15 border-l-primary text-primary font-semibold'
+                        : 'border-l-transparent text-white/80 hover:bg-white/5 hover:text-primary hover:border-l-primary'
+                      }
+                    `}
+                  >
+                    <Icon size={18} className="mr-3 flex-shrink-0" style={{ width: '20px' }} />
+                    <span>{item.label}</span>
+                  </Link>
+                )
+              })}
+            </div>
+          ))}
+        </nav>
+
+        {/* Logout */}
+        <div className="p-6 mt-4">
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 px-4 py-3 rounded-lg text-red-400 hover:bg-gray-800 w-full transition-colors mt-4"
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-danger-500/15 border border-danger-500/30 text-danger-500 rounded-button font-semibold text-sm transition-all hover:bg-danger-500/25"
           >
-            <LogOut size={20} />
-            <span>Sair</span>
+            <LogOut size={16} />
+            Sair
           </button>
-        </nav>
+        </div>
       </aside>
 
-      {/* Overlay */}
+      {/* Overlay Mobile */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* Main Content */}
-      <main className="lg:ml-64 mt-[57px] p-6">
-        <Outlet />
+      <main className="flex-1 flex flex-col overflow-hidden lg:ml-[280px]">
+        {/* Mobile Menu Button */}
+        <div className="lg:hidden p-4 bg-white border-b">
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="text-secondary-900"
+          >
+            {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-8">
+          <Outlet />
+        </div>
       </main>
     </div>
   )

@@ -8,9 +8,15 @@ import { LoginPage } from './pages/auth/LoginPage'
 import { CadastroPage } from './pages/auth/CadastroPage'
 import { ClienteLayout } from './pages/cliente/ClienteLayout'
 import { ClienteDashboard } from './pages/cliente/ClienteDashboard'
+import { ClienteDados } from './pages/cliente/ClienteDados'
+import { ClienteSolicitarAgendamento } from './pages/cliente/ClienteSolicitarAgendamento'
 import { ClienteAgendamentos } from './pages/cliente/ClienteAgendamentos'
+import { ClienteCancelar } from './pages/cliente/ClienteCancelar'
 import { ClientePagamentos } from './pages/cliente/ClientePagamentos'
+import { ClienteGuias } from './pages/cliente/ClienteGuias'
 import { ClienteReembolsos } from './pages/cliente/ClienteReembolsos'
+import { ClienteIndicacao } from './pages/cliente/ClienteIndicacao'
+import { ClienteAjuda } from './pages/cliente/ClienteAjuda'
 import { ClientePerfil } from './pages/cliente/ClientePerfil'
 import { AdminLayout } from './pages/admin/AdminLayout'
 import { AdminDashboard } from './pages/admin/AdminDashboard'
@@ -57,9 +63,17 @@ function AppRoutes() {
       {/* Portal do Cliente */}
       <Route path="/cliente" element={<ProtectedRoute><ClienteLayout /></ProtectedRoute>}>
         <Route index element={<ClienteDashboard />} />
+        <Route path="dados" element={<ClienteDados />} />
+        <Route path="solicitar-agendamento" element={<ClienteSolicitarAgendamento />} />
         <Route path="agendamentos" element={<ClienteAgendamentos />} />
+        <Route path="cancelar" element={<ClienteCancelar />} />
         <Route path="pagamentos" element={<ClientePagamentos />} />
+        <Route path="guias" element={<ClienteGuias />} />
         <Route path="reembolsos" element={<ClienteReembolsos />} />
+        <Route path="reembolso-consulta" element={<ClienteReembolsos />} />
+        <Route path="reembolso-exames" element={<ClienteReembolsos />} />
+        <Route path="indicacao" element={<ClienteIndicacao />} />
+        <Route path="ajuda" element={<ClienteAjuda />} />
         <Route path="perfil" element={<ClientePerfil />} />
       </Route>
 
