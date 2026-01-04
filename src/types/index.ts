@@ -35,7 +35,7 @@ export type AtualizarCliente = Database['public']['Tables']['clientes']['Update'
 
 // Tipos customizados para a aplicação
 export interface AgendamentoCompleto extends Agendamento {
-  cliente?: Cliente
+  cliente?: ClienteCompleto
   especialidade?: Especialidade
   estabelecimento?: Estabelecimento
   pagamento?: Pagamento
@@ -72,7 +72,7 @@ export interface CadastroClienteForm {
 
 export interface AgendamentoForm {
   especialidadeId: number
-  estabelecimentoId: number
+  estabelecimentoId?: number
   observacoes?: string
 }
 

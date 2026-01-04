@@ -7,10 +7,10 @@ export const isDevelopmentMode = () => {
 
 // Dados mock para desenvolvimento
 export const mockUsuario = {
-  id: 1,
+  id: 'mock-uuid-123', // UUID
+  auth_user_id: 'mock-auth-uuid-123', // UUID
   nome: 'João da Silva (Demo)',
   email: 'demo@cliente.com',
-  senha_hash: '',
   tipo_usuario: 'cliente' as const,
   telefone: '(11) 99999-9999',
   avatar_url: null,
@@ -21,7 +21,7 @@ export const mockUsuario = {
 
 export const mockCliente = {
   id: 1,
-  usuario_id: 1,
+  usuario_id: 'mock-uuid-123', // UUID
   cpf: '123.456.789-00',
   tipo_pessoa: 'fisica' as const,
   cnpj: null,
@@ -40,10 +40,10 @@ export const mockCliente = {
 }
 
 export const mockAdmin = {
-  id: 999,
+  id: 'mock-admin-uuid-999', // UUID
+  auth_user_id: 'mock-auth-admin-999', // UUID
   nome: 'Admin (Demo)',
   email: 'demo@admin.com',
-  senha_hash: '',
   tipo_usuario: 'admin' as const,
   telefone: '(11) 88888-8888',
   avatar_url: null,

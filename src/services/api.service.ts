@@ -40,6 +40,25 @@ export class ApiService {
       .single()
 
     if (error) throw error
+
+    // Criar notificação para admin (buscar primeiro admin do sistema)
+    const { data: adminUser } = await supabase
+      .from('usuarios')
+      .select('id')
+      .eq('tipo_usuario', 'admin')
+      .limit(1)
+      .single()
+
+    if (adminUser) {
+      await this.createNotificacao({
+        usuario_id: adminUser.id,
+        titulo: 'Nova Solicitação de Agendamento',
+        mensagem: `Um novo agendamento foi solicitado e aguarda confirmação.`,
+        tipo: 'alerta',
+        link: `/admin/agendamentos/pendentes`,
+      })
+    }
+
     return data as Agendamento
   }
 
@@ -48,6 +67,214 @@ export class ApiService {
       .from('agendamentos')
       .update({ status: 'cancelado' })
       .eq('id', agendamentoId)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  }
+
+  // ==================== AGENDAMENTOS PENDENTES (ADMIN) ====================
+
+  static async getAgendamentosPendentes() {
+    const { data, error } = await supabase
+      .from('agendamentos')
+      .select(`
+        *,
+        cliente:clientes(
+          id,
+          cpf,
+          usuario:usuarios(id, nome, email, telefone)
+        ),
+        especialidade:especialidades(id, nome, valor),
+        estabelecimento:estabelecimentos(id, nome, endereco, cidade, estado)
+      `)
+      .eq('status', 'pendente')
+      .order('data_solicitacao', { ascending: false })
+
+    if (error) throw error
+    return data
+  }
+
+  static async getAllAgendamentos(filters?: {
+    status?: string
+    data_inicio?: string
+    data_fim?: string
+  }) {
+    let query = supabase
+      .from('agendamentos')
+      .select(`
+        *,
+        cliente:clientes(
+          id,
+          cpf,
+          usuario:usuarios(id, nome, email)
+        ),
+        especialidade:especialidades(id, nome),
+        estabelecimento:estabelecimentos(id, nome, cidade, estado)
+      `)
+
+    if (filters?.status) {
+      query = query.eq('status', filters.status)
+    }
+
+    if (filters?.data_inicio) {
+      query = query.gte('data_agendamento', filters.data_inicio)
+    }
+
+    if (filters?.data_fim) {
+      query = query.lte('data_agendamento', filters.data_fim)
+    }
+
+    const { data, error } = await query.order('data_solicitacao', { ascending: false })
+
+    if (error) throw error
+    return data
+  }
+
+  static async confirmarAgendamento(
+    agendamentoId: number,
+    dados: {
+      data_agendamento: string
+      estabelecimento_id?: number
+      observacoes?: string
+    }
+  ) {
+    // 1. Atualizar agendamento
+    const { data: agendamento, error: updateError } = await supabase
+      .from('agendamentos')
+      .update({
+        status: 'confirmado',
+        data_agendamento: dados.data_agendamento,
+        estabelecimento_id: dados.estabelecimento_id,
+        observacoes: dados.observacoes,
+      })
+      .eq('id', agendamentoId)
+      .select(`
+        *,
+        cliente:clientes(
+          id,
+          usuario:usuarios(id, nome, email)
+        ),
+        especialidade:especialidades(id, nome)
+      `)
+      .single()
+
+    if (updateError) throw updateError
+
+    // 2. Criar notificação para o cliente
+    if (agendamento.cliente?.usuario?.id) {
+      const dataFormatada = new Date(dados.data_agendamento).toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+
+      await this.createNotificacao({
+        usuario_id: agendamento.cliente.usuario.id,
+        titulo: 'Agendamento Confirmado',
+        mensagem: `Seu agendamento de ${agendamento.especialidade?.nome} foi confirmado para ${dataFormatada}.`,
+        tipo: 'sucesso',
+        link: `/cliente/agendamentos`,
+      })
+    }
+
+    // 3. Gerar guia automaticamente
+    const numeroGuia = `GU-${new Date().getFullYear()}-${String(agendamentoId).padStart(6, '0')}`
+    const validade = new Date()
+    validade.setDate(validade.getDate() + 30) // Validade de 30 dias
+
+    await supabase.from('guias').insert({
+      agendamento_id: agendamentoId,
+      tipo: 'atendimento',
+      numero_guia: numeroGuia,
+      validade: validade.toISOString().split('T')[0],
+    })
+
+    return agendamento
+  }
+
+  static async recusarAgendamento(agendamentoId: number, motivo: string) {
+    // 1. Atualizar agendamento
+    const { data: agendamento, error: updateError } = await supabase
+      .from('agendamentos')
+      .update({
+        status: 'cancelado',
+        observacoes: `RECUSADO: ${motivo}`,
+      })
+      .eq('id', agendamentoId)
+      .select(`
+        *,
+        cliente:clientes(
+          id,
+          usuario:usuarios(id, nome)
+        )
+      `)
+      .single()
+
+    if (updateError) throw updateError
+
+    // 2. Notificar o cliente
+    if (agendamento.cliente?.usuario?.id) {
+      await this.createNotificacao({
+        usuario_id: agendamento.cliente.usuario.id,
+        titulo: 'Agendamento Recusado',
+        mensagem: `Seu agendamento foi recusado. Motivo: ${motivo}`,
+        tipo: 'erro',
+        link: `/cliente/agendamentos`,
+      })
+    }
+
+    return agendamento
+  }
+
+  // ==================== NOTIFICAÇÕES ====================
+
+  static async getNotificacoes(usuarioId: string) {
+    const { data, error } = await supabase
+      .from('notificacoes')
+      .select('*')
+      .eq('usuario_id', usuarioId)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return data as Notificacao[]
+  }
+
+  static async marcarComoLida(notificacaoId: number) {
+    const { data, error } = await supabase
+      .from('notificacoes')
+      .update({ lida: true })
+      .eq('id', notificacaoId)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  }
+
+  static async marcarTodasComoLidas(usuarioId: string) {
+    const { error } = await supabase
+      .from('notificacoes')
+      .update({ lida: true })
+      .eq('usuario_id', usuarioId)
+      .eq('lida', false)
+
+    if (error) throw error
+  }
+
+  static async createNotificacao(notificacao: {
+    usuario_id: string // UUID
+    titulo: string
+    mensagem: string
+    tipo: 'info' | 'sucesso' | 'alerta' | 'erro'
+    link?: string
+  }) {
+    const { data, error } = await supabase
+      .from('notificacoes')
+      .insert(notificacao)
       .select()
       .single()
 
@@ -144,41 +371,6 @@ export class ApiService {
     return data as Estabelecimento
   }
 
-  // ==================== NOTIFICAÇÕES ====================
-
-  static async getNotificacoes(usuarioId: number) {
-    const { data, error } = await supabase
-      .from('notificacoes')
-      .select('*')
-      .eq('usuario_id', usuarioId)
-      .order('created_at', { ascending: false })
-
-    if (error) throw error
-    return data as Notificacao[]
-  }
-
-  static async marcarComoLida(notificacaoId: number) {
-    const { data, error } = await supabase
-      .from('notificacoes')
-      .update({ lida: true })
-      .eq('id', notificacaoId)
-      .select()
-      .single()
-
-    if (error) throw error
-    return data
-  }
-
-  static async marcarTodasComoLidas(usuarioId: number) {
-    const { error } = await supabase
-      .from('notificacoes')
-      .update({ lida: true })
-      .eq('usuario_id', usuarioId)
-      .eq('lida', false)
-
-    if (error) throw error
-  }
-
   // ==================== CLIENTE ====================
 
   static async updateCliente(clienteId: number, dados: AtualizarCliente) {
@@ -199,6 +391,19 @@ export class ApiService {
       .select('*, usuario:usuarios(*)')
       .eq('id', id)
       .single()
+
+    if (error) throw error
+    return data
+  }
+
+  static async getAllClientes() {
+    const { data, error } = await supabase
+      .from('clientes')
+      .select(`
+        *,
+        usuario:usuarios(id, nome, email, telefone, ativo)
+      `)
+      .order('created_at', { ascending: false })
 
     if (error) throw error
     return data
@@ -247,14 +452,71 @@ export class ApiService {
 
   // ==================== GUIAS ====================
 
-  static async getGuias(agendamentoId: number) {
+  static async getGuiasCliente(clienteId: number) {
     const { data, error } = await supabase
       .from('guias')
-      .select('*')
-      .eq('agendamento_id', agendamentoId)
+      .select(`
+        *,
+        agendamento:agendamentos(
+          id,
+          data_agendamento,
+          especialidade:especialidades(id, nome),
+          estabelecimento:estabelecimentos(id, nome, endereco)
+        )
+      `)
+      .eq('agendamento.cliente_id', clienteId)
+      .order('created_at', { ascending: false })
 
     if (error) throw error
     return data
+  }
+
+  // ==================== DASHBOARD (ADMIN) ====================
+
+  static async getDashboardStats() {
+    // Total de clientes
+    const { count: totalClientes } = await supabase
+      .from('clientes')
+      .select('*', { count: 'exact', head: true })
+      .eq('ativo', true)
+
+    // Total de agendamentos
+    const { count: totalAgendamentos } = await supabase
+      .from('agendamentos')
+      .select('*', { count: 'exact', head: true })
+
+    // Agendamentos pendentes
+    const { count: agendamentosPendentes } = await supabase
+      .from('agendamentos')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pendente')
+
+    // Reembolsos pendentes
+    const { count: reembolsosPendentes } = await supabase
+      .from('reembolsos')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pendente')
+
+    // Receita do mês atual
+    const primeiroDiaMes = new Date()
+    primeiroDiaMes.setDate(1)
+    primeiroDiaMes.setHours(0, 0, 0, 0)
+
+    const { data: pagamentosMes } = await supabase
+      .from('pagamentos')
+      .select('valor')
+      .eq('status', 'pago')
+      .gte('data_pagamento', primeiroDiaMes.toISOString())
+
+    const receitaMes = pagamentosMes?.reduce((acc, p) => acc + Number(p.valor), 0) || 0
+
+    return {
+      totalClientes: totalClientes || 0,
+      totalAgendamentos: totalAgendamentos || 0,
+      agendamentosPendentes: agendamentosPendentes || 0,
+      reembolsosPendentes: reembolsosPendentes || 0,
+      receitaMes,
+    }
   }
 
   // ==================== VIACEPCEP API ====================

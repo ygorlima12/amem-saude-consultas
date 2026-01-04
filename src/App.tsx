@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAuth, useAuthListener } from './hooks/useAuth'
 
-// Páginas
+// Páginas Cliente
 import { LoginPage } from './pages/auth/LoginPage'
 import { CadastroPage } from './pages/auth/CadastroPage'
 import { ClienteLayout } from './pages/cliente/ClienteLayout'
@@ -18,10 +18,13 @@ import { ClienteReembolsos } from './pages/cliente/ClienteReembolsos'
 import { ClienteIndicacao } from './pages/cliente/ClienteIndicacao'
 import { ClienteAjuda } from './pages/cliente/ClienteAjuda'
 import { ClientePerfil } from './pages/cliente/ClientePerfil'
+
+// Páginas Admin
 import { AdminLayout } from './pages/admin/AdminLayout'
 import { AdminDashboard } from './pages/admin/AdminDashboard'
 import { AdminClientes } from './pages/admin/AdminClientes'
 import { AdminAgendamentos } from './pages/admin/AdminAgendamentos'
+import { AdminAgendamentosPendentes } from './pages/admin/AdminAgendamentosPendentes'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -82,6 +85,7 @@ function AppRoutes() {
         <Route index element={<AdminDashboard />} />
         <Route path="clientes" element={<AdminClientes />} />
         <Route path="agendamentos" element={<AdminAgendamentos />} />
+        <Route path="agendamentos/pendentes" element={<AdminAgendamentosPendentes />} />
       </Route>
 
       <Route path="/" element={<Navigate to="/login" replace />} />

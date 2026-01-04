@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
+import { useQuery } from '@tanstack/react-query'
+import { ApiService } from '@/services/api.service'
 import {
   LayoutDashboard,
   Users,
@@ -14,6 +16,8 @@ import {
   X,
   ClipboardList,
   MapPin,
+  Bell,
+  AlertCircle,
 } from 'lucide-react'
 
 const menuSections = [
@@ -34,6 +38,7 @@ const menuSections = [
   {
     title: 'OPERACIONAL',
     items: [
+      { path: '/admin/agendamentos/pendentes', icon: AlertCircle, label: 'Pendentes', badge: true },
       { path: '/admin/agendamentos', icon: Calendar, label: 'Agendamentos' },
       { path: '/admin/reembolsos', icon: FileText, label: 'Reembolsos' },
       { path: '/admin/indicacoes', icon: ClipboardList, label: 'Indicações' },
@@ -58,6 +63,16 @@ export const AdminLayout = () => {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Buscar quantidade de agendamentos pendentes
+  const { data: pendentesCount } = useQuery({
+    queryKey: ['agendamentos-pendentes-count'],
+    queryFn: async () => {
+      const data = await ApiService.getAgendamentosPendentes()
+      return data?.length || 0
+    },
+    refetchInterval: 30000, // Atualiza a cada 30 segundos
+  })
 
   const handleLogout = async () => {
     if (confirm('Deseja realmente sair?')) {
@@ -97,22 +112,31 @@ export const AdminLayout = () => {
               {section.items.map((item) => {
                 const Icon = item.icon
                 const isActive = location.pathname === item.path
+                const showBadge = item.badge && pendentesCount && pendentesCount > 0
+
                 return (
                   <Link
                     key={item.path}
                     to={item.path}
                     onClick={() => setSidebarOpen(false)}
                     className={`
-                      flex items-center px-6 py-3 transition-all duration-300
-                      border-l-[3px]
+                      flex items-center justify-between px-6 py-3 transition-all duration-300
+                      border-l-[3px] relative
                       ${isActive
                         ? 'bg-primary/15 border-l-primary text-primary font-semibold'
                         : 'border-l-transparent text-white/80 hover:bg-white/5 hover:text-primary hover:border-l-primary'
                       }
                     `}
                   >
-                    <Icon size={18} className="mr-3 flex-shrink-0" style={{ width: '20px' }} />
-                    <span>{item.label}</span>
+                    <div className="flex items-center">
+                      <Icon size={18} className="mr-3 flex-shrink-0" style={{ width: '20px' }} />
+                      <span>{item.label}</span>
+                    </div>
+                    {showBadge && (
+                      <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
+                        {pendentesCount}
+                      </span>
+                    )}
                   </Link>
                 )
               })}
@@ -142,8 +166,8 @@ export const AdminLayout = () => {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden lg:ml-[280px]">
-        {/* Mobile Menu Button */}
-        <div className="lg:hidden p-4 bg-white border-b">
+        {/* Top Header */}
+        <div className="bg-white border-b p-4 lg:hidden">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="text-secondary-900"

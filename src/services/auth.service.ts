@@ -16,13 +16,13 @@ export class AuthService {
 
       if (credentials.email === 'demo@admin.com') {
         return {
-          user: { id: '999' } as any,
+          user: { id: 'mock-admin-uuid-999' } as any,
           usuario: mockAdmin,
           cliente: null,
         }
       } else {
         return {
-          user: { id: '1' } as any,
+          user: { id: 'mock-uuid-123' } as any,
           usuario: mockUsuario,
           cliente: mockCliente,
         }
@@ -37,14 +37,36 @@ export class AuthService {
       })
 
       if (authError) throw authError
+      if (!authData.user) throw new Error('Erro ao fazer login')
 
+      // Buscar dados do usuário na tabela usuarios
       const { data: userData, error: userError } = await supabase
         .from('usuarios')
         .select('*')
-        .eq('email', credentials.email)
+        .eq('auth_user_id', authData.user.id)
         .single()
 
-      if (userError) throw userError
+      if (userError) {
+        // Se não encontrou, criar o registro
+        const { data: novoUsuario, error: criarError } = await supabase
+          .from('usuarios')
+          .insert({
+            auth_user_id: authData.user.id,
+            email: credentials.email,
+            nome: authData.user.user_metadata?.nome || credentials.email.split('@')[0],
+            tipo_usuario: 'cliente',
+          })
+          .select()
+          .single()
+
+        if (criarError) throw criarError
+
+        return {
+          user: authData.user,
+          usuario: novoUsuario as Usuario,
+          cliente: null,
+        }
+      }
 
       let clienteData = null
       if (userData.tipo_usuario === 'cliente') {
@@ -80,19 +102,19 @@ export class AuthService {
       const novoCliente = {
         ...mockCliente,
         id: Date.now(),
-        usuario_id: Date.now(),
+        usuario_id: 'mock-uuid-' + Date.now(),
       }
 
       const novoUsuario = {
         ...mockUsuario,
-        id: Date.now(),
+        id: 'mock-uuid-' + Date.now(),
         nome: dados.nome,
         email: dados.email,
         telefone: dados.telefone,
       }
 
       return {
-        user: { id: String(novoUsuario.id) } as any,
+        user: { id: novoUsuario.id } as any,
         usuario: novoUsuario,
         cliente: novoCliente,
       }
@@ -100,28 +122,39 @@ export class AuthService {
 
     // Modo produção
     try {
+      // 1. Criar usuário no Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: dados.email,
         password: dados.senha,
+        options: {
+          data: {
+            nome: dados.nome,
+          }
+        }
       })
 
       if (authError) throw authError
       if (!authData.user) throw new Error('Erro ao criar usuário')
 
+      // 2. Criar registro na tabela usuarios MANUALMENTE
       const { data: userData, error: userError } = await supabase
         .from('usuarios')
         .insert({
-          nome: dados.nome,
+          auth_user_id: authData.user.id,
           email: dados.email,
-          senha_hash: '',
-          tipo_usuario: 'cliente',
+          nome: dados.nome,
           telefone: dados.telefone,
+          tipo_usuario: 'cliente',
         })
         .select()
         .single()
 
-      if (userError) throw userError
+      if (userError) {
+        console.error('Erro ao criar usuário:', userError)
+        throw userError
+      }
 
+      // 3. Criar registro de cliente
       const { data: clienteData, error: clienteError } = await supabase
         .from('clientes')
         .insert({
@@ -136,7 +169,10 @@ export class AuthService {
         .select()
         .single()
 
-      if (clienteError) throw clienteError
+      if (clienteError) {
+        console.error('Erro ao criar cliente:', clienteError)
+        throw clienteError
+      }
 
       return {
         user: authData.user,
@@ -191,7 +227,7 @@ export class AuthService {
   /**
    * Obtém dados completos do usuário logado
    */
-  static async getUserData(userId: string) {
+  static async getUserData(authUserId: string) {
     if (isDevelopmentMode()) {
       return {
         usuario: mockUsuario,
@@ -200,10 +236,11 @@ export class AuthService {
     }
 
     try {
+      // Buscar usuário pela auth_user_id
       const { data: userData, error: userError } = await supabase
         .from('usuarios')
         .select('*')
-        .eq('id', userId)
+        .eq('auth_user_id', authUserId)
         .single()
 
       if (userError) throw userError

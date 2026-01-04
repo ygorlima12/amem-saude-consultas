@@ -11,10 +11,10 @@ export interface Database {
     Tables: {
       usuarios: {
         Row: {
-          id: number
+          id: string // UUID
+          auth_user_id: string | null // UUID
           nome: string
           email: string
-          senha_hash: string
           tipo_usuario: 'admin' | 'tecnico' | 'usuario' | 'cliente'
           ativo: boolean
           created_at: string
@@ -23,10 +23,10 @@ export interface Database {
           avatar_url: string | null
         }
         Insert: {
-          id?: number
+          id?: string
+          auth_user_id?: string | null
           nome: string
           email: string
-          senha_hash: string
           tipo_usuario?: 'admin' | 'tecnico' | 'usuario' | 'cliente'
           ativo?: boolean
           created_at?: string
@@ -35,10 +35,10 @@ export interface Database {
           avatar_url?: string | null
         }
         Update: {
-          id?: number
+          id?: string
+          auth_user_id?: string | null
           nome?: string
           email?: string
-          senha_hash?: string
           tipo_usuario?: 'admin' | 'tecnico' | 'usuario' | 'cliente'
           ativo?: boolean
           created_at?: string
@@ -50,7 +50,7 @@ export interface Database {
       clientes: {
         Row: {
           id: number
-          usuario_id: number
+          usuario_id: string // UUID
           cpf: string
           tipo_pessoa: 'fisica' | 'juridica'
           cnpj: string | null
@@ -69,7 +69,7 @@ export interface Database {
         }
         Insert: {
           id?: number
-          usuario_id: number
+          usuario_id: string
           cpf: string
           tipo_pessoa?: 'fisica' | 'juridica'
           cnpj?: string | null
@@ -88,7 +88,7 @@ export interface Database {
         }
         Update: {
           id?: number
-          usuario_id?: number
+          usuario_id?: string
           cpf?: string
           tipo_pessoa?: 'fisica' | 'juridica'
           cnpj?: string | null
@@ -231,7 +231,7 @@ export interface Database {
           id: number
           cliente_id: number
           especialidade_id: number
-          estabelecimento_id: number
+          estabelecimento_id: number | null
           data_solicitacao: string
           data_agendamento: string | null
           status: 'pendente' | 'confirmado' | 'realizado' | 'cancelado'
@@ -246,7 +246,7 @@ export interface Database {
           id?: number
           cliente_id: number
           especialidade_id: number
-          estabelecimento_id: number
+          estabelecimento_id?: number | null
           data_solicitacao?: string
           data_agendamento?: string | null
           status?: 'pendente' | 'confirmado' | 'realizado' | 'cancelado'
@@ -261,7 +261,7 @@ export interface Database {
           id?: number
           cliente_id?: number
           especialidade_id?: number
-          estabelecimento_id?: number
+          estabelecimento_id?: number | null
           data_solicitacao?: string
           data_agendamento?: string | null
           status?: 'pendente' | 'confirmado' | 'realizado' | 'cancelado'
@@ -434,7 +434,7 @@ export interface Database {
       notificacoes: {
         Row: {
           id: number
-          usuario_id: number
+          usuario_id: string // UUID
           titulo: string
           mensagem: string
           tipo: 'info' | 'sucesso' | 'alerta' | 'erro'
@@ -444,7 +444,7 @@ export interface Database {
         }
         Insert: {
           id?: number
-          usuario_id: number
+          usuario_id: string
           titulo: string
           mensagem: string
           tipo?: 'info' | 'sucesso' | 'alerta' | 'erro'
@@ -454,7 +454,7 @@ export interface Database {
         }
         Update: {
           id?: number
-          usuario_id?: number
+          usuario_id?: string
           titulo?: string
           mensagem?: string
           tipo?: 'info' | 'sucesso' | 'alerta' | 'erro'
@@ -472,7 +472,7 @@ export interface Database {
           categoria: string
           data_lancamento: string
           created_at: string
-          usuario_id: number
+          usuario_id: string // UUID
         }
         Insert: {
           id?: number
@@ -482,7 +482,7 @@ export interface Database {
           categoria: string
           data_lancamento?: string
           created_at?: string
-          usuario_id: number
+          usuario_id: string
         }
         Update: {
           id?: number
@@ -492,13 +492,13 @@ export interface Database {
           categoria?: string
           data_lancamento?: string
           created_at?: string
-          usuario_id?: number
+          usuario_id?: string
         }
       }
       logs_sistema: {
         Row: {
           id: number
-          usuario_id: number | null
+          usuario_id: string | null // UUID
           acao: string
           tabela: string | null
           registro_id: number | null
@@ -508,7 +508,7 @@ export interface Database {
         }
         Insert: {
           id?: number
-          usuario_id?: number | null
+          usuario_id?: string | null
           acao: string
           tabela?: string | null
           registro_id?: number | null
@@ -518,7 +518,7 @@ export interface Database {
         }
         Update: {
           id?: number
-          usuario_id?: number | null
+          usuario_id?: string | null
           acao?: string
           tabela?: string | null
           registro_id?: number | null

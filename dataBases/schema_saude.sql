@@ -1,5 +1,5 @@
 -- ============================================
--- AMÉM SAÚDE - SCHEMA SQL PARA SUPABASE
+-- AMÉM SAÚDE - SCHEMA SQL PARA SUPABASE (CORRIGIDO)
 -- ============================================
 -- IMPORTANTE: Execute este SQL completo de uma vez
 -- Este script limpa e recria todo o banco de dados
@@ -37,12 +37,12 @@ DROP FUNCTION IF EXISTS update_ultima_atualizacao() CASCADE;
 -- PASSO 2: CRIAR TABELAS
 -- ============================================
 
--- USUÁRIOS
+-- USUÁRIOS (UUID compatível com Supabase Auth)
 CREATE TABLE usuarios (
-    id BIGSERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    auth_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     nome VARCHAR(200) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
-    senha_hash VARCHAR(255) NOT NULL,
     tipo_usuario VARCHAR(20) DEFAULT 'cliente' CHECK (tipo_usuario IN ('admin', 'tecnico', 'usuario', 'cliente')),
     telefone VARCHAR(20),
     avatar_url TEXT,
@@ -70,7 +70,7 @@ CREATE TABLE empresas (
 -- CLIENTES/BENEFICIÁRIOS
 CREATE TABLE clientes (
     id BIGSERIAL PRIMARY KEY,
-    usuario_id BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
     cpf VARCHAR(14) UNIQUE NOT NULL,
     tipo_pessoa VARCHAR(10) DEFAULT 'fisica' CHECK (tipo_pessoa IN ('fisica', 'juridica')),
     cnpj VARCHAR(18),
@@ -121,7 +121,7 @@ CREATE TABLE agendamentos (
     id BIGSERIAL PRIMARY KEY,
     cliente_id BIGINT NOT NULL REFERENCES clientes(id),
     especialidade_id BIGINT NOT NULL REFERENCES especialidades(id),
-    estabelecimento_id BIGINT NOT NULL REFERENCES estabelecimentos(id),
+    estabelecimento_id BIGINT REFERENCES estabelecimentos(id),
     data_solicitacao TIMESTAMPTZ DEFAULT NOW(),
     data_agendamento TIMESTAMPTZ,
     status VARCHAR(20) DEFAULT 'pendente' CHECK (status IN ('pendente', 'confirmado', 'realizado', 'cancelado')),
@@ -194,7 +194,7 @@ CREATE TABLE indicacoes (
 -- NOTIFICAÇÕES
 CREATE TABLE notificacoes (
     id BIGSERIAL PRIMARY KEY,
-    usuario_id BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
     titulo VARCHAR(200) NOT NULL,
     mensagem TEXT NOT NULL,
     tipo VARCHAR(20) DEFAULT 'info' CHECK (tipo IN ('info', 'sucesso', 'alerta', 'erro')),
@@ -211,14 +211,14 @@ CREATE TABLE financeiro (
     valor DECIMAL(10, 2) NOT NULL,
     categoria VARCHAR(100) NOT NULL,
     data_lancamento DATE DEFAULT CURRENT_DATE,
-    usuario_id BIGINT NOT NULL REFERENCES usuarios(id),
+    usuario_id UUID NOT NULL REFERENCES usuarios(id),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- LOGS DO SISTEMA
 CREATE TABLE logs_sistema (
     id BIGSERIAL PRIMARY KEY,
-    usuario_id BIGINT REFERENCES usuarios(id),
+    usuario_id UUID REFERENCES usuarios(id),
     acao VARCHAR(200) NOT NULL,
     tabela VARCHAR(100),
     registro_id BIGINT,
@@ -230,6 +230,8 @@ CREATE TABLE logs_sistema (
 -- ============================================
 -- PASSO 3: CRIAR ÍNDICES
 -- ============================================
+CREATE INDEX idx_usuarios_auth_user ON usuarios(auth_user_id);
+CREATE INDEX idx_usuarios_email ON usuarios(email);
 CREATE INDEX idx_clientes_usuario ON clientes(usuario_id);
 CREATE INDEX idx_clientes_cpf ON clientes(cpf);
 CREATE INDEX idx_agendamentos_cliente ON agendamentos(cliente_id);
@@ -295,7 +297,29 @@ CREATE TRIGGER update_indicacoes_timestamp
     FOR EACH ROW EXECUTE FUNCTION update_ultima_atualizacao();
 
 -- ============================================
--- PASSO 6: INSERIR DADOS INICIAIS
+-- PASSO 6: CRIAR FUNÇÃO PARA SINCRONIZAR USUÁRIO
+-- ============================================
+-- Função que cria registro na tabela usuarios quando um usuário se cadastra no Supabase Auth
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.usuarios (auth_user_id, email, nome)
+    VALUES (
+        NEW.id,
+        NEW.email,
+        COALESCE(NEW.raw_user_meta_data->>'nome', NEW.email)
+    );
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger para executar a função quando um novo usuário é criado
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- ============================================
+-- PASSO 7: INSERIR DADOS INICIAIS
 -- ============================================
 INSERT INTO especialidades (nome, descricao, valor) VALUES
 ('Clínico Geral', 'Consulta com médico clínico geral', 150.00),
@@ -309,8 +333,316 @@ INSERT INTO especialidades (nome, descricao, valor) VALUES
 ('Nutrição', 'Consulta nutricional', 150.00),
 ('Fisioterapia', 'Sessão de fisioterapia', 120.00);
 
+-- Inserir estabelecimentos de exemplo
+INSERT INTO estabelecimentos (nome, endereco, cidade, estado, cep, telefone, especialidades) VALUES
+('Clínica Saúde Plena', 'Rua das Flores, 123 - Centro', 'São Paulo', 'SP', '01234-567', '(11) 3000-0001', ARRAY[1,2,3,4,5]),
+('Hospital São Lucas', 'Av. Principal, 456 - Zona Sul', 'São Paulo', 'SP', '04567-890', '(11) 3000-0002', ARRAY[1,2,3,4,5,6,7]),
+('Policlínica Vida', 'Rua do Comércio, 789 - Zona Norte', 'São Paulo', 'SP', '02345-678', '(11) 3000-0003', ARRAY[1,3,4,8,9,10]);
+
 -- ============================================
--- PASSO 7: VERIFICAÇÃO
+-- PASSO 8: CONFIGURAR ROW LEVEL SECURITY (RLS)
+-- ============================================
+
+-- Habilitar RLS em todas as tabelas
+ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
+ALTER TABLE clientes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE empresas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE especialidades ENABLE ROW LEVEL SECURITY;
+ALTER TABLE estabelecimentos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE agendamentos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pagamentos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reembolsos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE guias ENABLE ROW LEVEL SECURITY;
+ALTER TABLE indicacoes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notificacoes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE financeiro ENABLE ROW LEVEL SECURITY;
+ALTER TABLE logs_sistema ENABLE ROW LEVEL SECURITY;
+
+-- ============================================
+-- POLICIES - USUÁRIOS
+-- ============================================
+
+-- Usuário pode ver seus próprios dados
+CREATE POLICY "Usuários podem ver seus próprios dados"
+ON usuarios FOR SELECT
+TO authenticated
+USING (auth.uid() = auth_user_id);
+
+-- Usuário pode atualizar seus próprios dados
+CREATE POLICY "Usuários podem atualizar seus próprios dados"
+ON usuarios FOR UPDATE
+TO authenticated
+USING (auth.uid() = auth_user_id);
+
+-- Admin pode ver todos os usuários
+CREATE POLICY "Admin pode ver todos os usuários"
+ON usuarios FOR SELECT
+TO authenticated
+USING (
+    EXISTS (
+        SELECT 1 FROM usuarios
+        WHERE usuarios.auth_user_id = auth.uid()
+        AND usuarios.tipo_usuario IN ('admin', 'tecnico')
+    )
+);
+
+-- ============================================
+-- POLICIES - CLIENTES
+-- ============================================
+
+-- Cliente pode ver seus próprios dados
+CREATE POLICY "Cliente vê seus próprios dados"
+ON clientes FOR SELECT
+TO authenticated
+USING (
+    EXISTS (
+        SELECT 1 FROM usuarios
+        WHERE usuarios.id = clientes.usuario_id
+        AND usuarios.auth_user_id = auth.uid()
+    )
+);
+
+-- Cliente pode atualizar seus próprios dados
+CREATE POLICY "Cliente atualiza seus dados"
+ON clientes FOR UPDATE
+TO authenticated
+USING (
+    EXISTS (
+        SELECT 1 FROM usuarios
+        WHERE usuarios.id = clientes.usuario_id
+        AND usuarios.auth_user_id = auth.uid()
+    )
+);
+
+-- Admin pode ver todos os clientes
+CREATE POLICY "Admin vê todos os clientes"
+ON clientes FOR SELECT
+TO authenticated
+USING (
+    EXISTS (
+        SELECT 1 FROM usuarios
+        WHERE usuarios.auth_user_id = auth.uid()
+        AND usuarios.tipo_usuario IN ('admin', 'tecnico')
+    )
+);
+
+-- Admin pode criar clientes
+CREATE POLICY "Admin cria clientes"
+ON clientes FOR INSERT
+TO authenticated
+WITH CHECK (
+    EXISTS (
+        SELECT 1 FROM usuarios
+        WHERE usuarios.auth_user_id = auth.uid()
+        AND usuarios.tipo_usuario IN ('admin', 'tecnico')
+    )
+);
+
+-- ============================================
+-- POLICIES - ESPECIALIDADES E ESTABELECIMENTOS
+-- ============================================
+
+-- Todos podem ver especialidades e estabelecimentos ativos
+CREATE POLICY "Todos veem especialidades ativas"
+ON especialidades FOR SELECT
+TO authenticated
+USING (ativo = true);
+
+CREATE POLICY "Todos veem estabelecimentos ativos"
+ON estabelecimentos FOR SELECT
+TO authenticated
+USING (ativo = true);
+
+-- Admin pode gerenciar especialidades e estabelecimentos
+CREATE POLICY "Admin gerencia especialidades"
+ON especialidades FOR ALL
+TO authenticated
+USING (
+    EXISTS (
+        SELECT 1 FROM usuarios
+        WHERE usuarios.auth_user_id = auth.uid()
+        AND usuarios.tipo_usuario IN ('admin', 'tecnico')
+    )
+);
+
+CREATE POLICY "Admin gerencia estabelecimentos"
+ON estabelecimentos FOR ALL
+TO authenticated
+USING (
+    EXISTS (
+        SELECT 1 FROM usuarios
+        WHERE usuarios.auth_user_id = auth.uid()
+        AND usuarios.tipo_usuario IN ('admin', 'tecnico')
+    )
+);
+
+-- ============================================
+-- POLICIES - AGENDAMENTOS
+-- ============================================
+
+-- Cliente vê seus agendamentos
+CREATE POLICY "Cliente vê seus agendamentos"
+ON agendamentos FOR SELECT
+TO authenticated
+USING (
+    EXISTS (
+        SELECT 1 FROM clientes
+        JOIN usuarios ON usuarios.id = clientes.usuario_id
+        WHERE clientes.id = agendamentos.cliente_id
+        AND usuarios.auth_user_id = auth.uid()
+    )
+);
+
+-- Cliente cria agendamento
+CREATE POLICY "Cliente cria agendamento"
+ON agendamentos FOR INSERT
+TO authenticated
+WITH CHECK (
+    EXISTS (
+        SELECT 1 FROM clientes
+        JOIN usuarios ON usuarios.id = clientes.usuario_id
+        WHERE clientes.id = agendamentos.cliente_id
+        AND usuarios.auth_user_id = auth.uid()
+    )
+);
+
+-- Admin vê todos os agendamentos
+CREATE POLICY "Admin vê todos os agendamentos"
+ON agendamentos FOR SELECT
+TO authenticated
+USING (
+    EXISTS (
+        SELECT 1 FROM usuarios
+        WHERE usuarios.auth_user_id = auth.uid()
+        AND usuarios.tipo_usuario IN ('admin', 'tecnico')
+    )
+);
+
+-- Admin atualiza agendamentos
+CREATE POLICY "Admin atualiza agendamentos"
+ON agendamentos FOR UPDATE
+TO authenticated
+USING (
+    EXISTS (
+        SELECT 1 FROM usuarios
+        WHERE usuarios.auth_user_id = auth.uid()
+        AND usuarios.tipo_usuario IN ('admin', 'tecnico')
+    )
+);
+
+-- ============================================
+-- POLICIES - NOTIFICAÇÕES
+-- ============================================
+
+-- Usuário vê suas notificações
+CREATE POLICY "Usuário vê suas notificações"
+ON notificacoes FOR SELECT
+TO authenticated
+USING (
+    EXISTS (
+        SELECT 1 FROM usuarios
+        WHERE usuarios.id = notificacoes.usuario_id
+        AND usuarios.auth_user_id = auth.uid()
+    )
+);
+
+-- Usuário atualiza suas notificações
+CREATE POLICY "Usuário atualiza suas notificações"
+ON notificacoes FOR UPDATE
+TO authenticated
+USING (
+    EXISTS (
+        SELECT 1 FROM usuarios
+        WHERE usuarios.id = notificacoes.usuario_id
+        AND usuarios.auth_user_id = auth.uid()
+    )
+);
+
+-- Sistema/Admin pode criar notificações
+CREATE POLICY "Sistema cria notificações"
+ON notificacoes FOR INSERT
+TO authenticated
+WITH CHECK (true);
+
+-- ============================================
+-- POLICIES - OUTRAS TABELAS
+-- ============================================
+
+-- Pagamentos, Reembolsos, Guias - Cliente vê os seus
+CREATE POLICY "Cliente vê seus pagamentos"
+ON pagamentos FOR SELECT
+TO authenticated
+USING (
+    EXISTS (
+        SELECT 1 FROM agendamentos
+        JOIN clientes ON clientes.id = agendamentos.cliente_id
+        JOIN usuarios ON usuarios.id = clientes.usuario_id
+        WHERE agendamentos.id = pagamentos.agendamento_id
+        AND usuarios.auth_user_id = auth.uid()
+    )
+);
+
+CREATE POLICY "Cliente vê seus reembolsos"
+ON reembolsos FOR SELECT
+TO authenticated
+USING (
+    EXISTS (
+        SELECT 1 FROM clientes
+        JOIN usuarios ON usuarios.id = clientes.usuario_id
+        WHERE clientes.id = reembolsos.cliente_id
+        AND usuarios.auth_user_id = auth.uid()
+    )
+);
+
+CREATE POLICY "Cliente vê suas guias"
+ON guias FOR SELECT
+TO authenticated
+USING (
+    EXISTS (
+        SELECT 1 FROM agendamentos
+        JOIN clientes ON clientes.id = agendamentos.cliente_id
+        JOIN usuarios ON usuarios.id = clientes.usuario_id
+        WHERE agendamentos.id = guias.agendamento_id
+        AND usuarios.auth_user_id = auth.uid()
+    )
+);
+
+-- Admin vê tudo
+CREATE POLICY "Admin vê todos os pagamentos"
+ON pagamentos FOR ALL
+TO authenticated
+USING (
+    EXISTS (
+        SELECT 1 FROM usuarios
+        WHERE usuarios.auth_user_id = auth.uid()
+        AND usuarios.tipo_usuario IN ('admin', 'tecnico')
+    )
+);
+
+CREATE POLICY "Admin vê todos os reembolsos"
+ON reembolsos FOR ALL
+TO authenticated
+USING (
+    EXISTS (
+        SELECT 1 FROM usuarios
+        WHERE usuarios.auth_user_id = auth.uid()
+        AND usuarios.tipo_usuario IN ('admin', 'tecnico')
+    )
+);
+
+CREATE POLICY "Admin vê todas as guias"
+ON guias FOR ALL
+TO authenticated
+USING (
+    EXISTS (
+        SELECT 1 FROM usuarios
+        WHERE usuarios.auth_user_id = auth.uid()
+        AND usuarios.tipo_usuario IN ('admin', 'tecnico')
+    )
+);
+
+-- ============================================
+-- PASSO 9: VERIFICAÇÃO
 -- ============================================
 -- Listar todas as tabelas criadas
 SELECT
@@ -324,3 +656,26 @@ ORDER BY table_name;
 SELECT
     'Total de especialidades: ' || COUNT(*)::text as resultado
 FROM especialidades;
+
+-- Contar estabelecimentos inseridos
+SELECT
+    'Total de estabelecimentos: ' || COUNT(*)::text as resultado
+FROM estabelecimentos;
+
+-- ============================================
+-- PASSO 10: CRIAR USUÁRIO ADMIN INICIAL (OPCIONAL)
+-- ============================================
+-- Descomente as linhas abaixo para criar um usuário admin de teste
+-- IMPORTANTE: Substitua 'seu-email@admin.com' e 'sua-senha-segura'
+
+-- Primeiro, crie o usuário no Supabase Auth manualmente via dashboard
+-- Depois execute:
+/*
+INSERT INTO usuarios (auth_user_id, email, nome, tipo_usuario)
+VALUES (
+    'cole-aqui-o-uuid-do-auth-user',
+    'seu-email@admin.com',
+    'Administrador',
+    'admin'
+);
+*/
