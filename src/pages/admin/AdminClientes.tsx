@@ -1,35 +1,35 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
-import { Modal } from '@/components/ui/Modal'
-import { Plus, Search, Eye, Edit, Trash2 } from 'lucide-react'
+import { Search, Eye, Edit, Trash2 } from 'lucide-react'
+import { ApiService } from '@/services/api.service'
 
 export const AdminClientes = () => {
-  const [showModal, setShowModal] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
 
-  const clientes = [
-    {
-      id: 1,
-      nome: 'João da Silva',
-      email: 'joao@email.com',
-      cpf: '123.456.789-00',
-      telefone: '(11) 99999-9999',
-      status: 'ativo',
-      dataEntrada: '2024-01-15',
-    },
-    {
-      id: 2,
-      nome: 'Maria Santos',
-      email: 'maria@email.com',
-      cpf: '987.654.321-00',
-      telefone: '(11) 98888-8888',
-      status: 'ativo',
-      dataEntrada: '2024-01-20',
-    },
-  ]
+  const { data: clientes, isLoading } = useQuery({
+    queryKey: ['admin-clientes'],
+    queryFn: () => ApiService.getAllClientes(),
+  })
+
+  const filteredClientes = clientes?.filter((cliente) => {
+    const searchLower = searchTerm.toLowerCase()
+    return (
+      cliente.usuario?.nome?.toLowerCase().includes(searchLower) ||
+      cliente.usuario?.email?.toLowerCase().includes(searchLower) ||
+      cliente.cpf?.includes(searchLower)
+    )
+  })
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -38,10 +38,6 @@ export const AdminClientes = () => {
           <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
           <p className="text-gray-600">Gerencie os beneficiários cadastrados</p>
         </div>
-        <Button onClick={() => setShowModal(true)}>
-          <Plus size={20} />
-          Novo Cliente
-        </Button>
       </div>
 
       {/* Search */}
@@ -82,70 +78,56 @@ export const AdminClientes = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {clientes.map((cliente) => (
-                <tr key={cliente.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">{cliente.nome}</div>
-                      <div className="text-sm text-gray-500">{cliente.email}</div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {cliente.cpf}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {cliente.telefone}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <Badge variant="success">Ativo</Badge>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex gap-2">
-                      <button className="text-blue-600 hover:text-blue-900">
-                        <Eye size={18} />
-                      </button>
-                      <button className="text-gray-600 hover:text-gray-900">
-                        <Edit size={18} />
-                      </button>
-                      <button className="text-red-600 hover:text-red-900">
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
+              {filteredClientes && filteredClientes.length > 0 ? (
+                filteredClientes.map((cliente) => (
+                  <tr key={cliente.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {cliente.usuario?.nome || 'Sem nome'}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {cliente.usuario?.email || 'Sem email'}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {cliente.cpf || 'Sem CPF'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {cliente.usuario?.telefone || 'Sem telefone'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <Badge variant={cliente.usuario?.ativo ? 'success' : 'danger'}>
+                        {cliente.usuario?.ativo ? 'Ativo' : 'Inativo'}
+                      </Badge>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex gap-2">
+                        <button className="text-blue-600 hover:text-blue-900">
+                          <Eye size={18} />
+                        </button>
+                        <button className="text-gray-600 hover:text-gray-900">
+                          <Edit size={18} />
+                        </button>
+                        <button className="text-red-600 hover:text-red-900">
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} className="px-6 py-4 text-center text-sm text-gray-500">
+                    {searchTerm ? 'Nenhum cliente encontrado' : 'Nenhum cliente cadastrado'}
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
       </Card>
-
-      {/* Modal */}
-      <Modal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        title="Novo Cliente"
-        size="lg"
-      >
-        <form className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input label="Nome Completo" required />
-            <Input label="Email" type="email" required />
-            <Input label="CPF" required />
-            <Input label="Telefone" required />
-            <Input label="Data de Nascimento" type="date" />
-            <Input label="CEP" />
-          </div>
-
-          <div className="flex gap-3 justify-end pt-4">
-            <Button variant="outline" onClick={() => setShowModal(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit">
-              Cadastrar Cliente
-            </Button>
-          </div>
-        </form>
-      </Modal>
     </div>
   )
 }

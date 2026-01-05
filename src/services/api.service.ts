@@ -32,6 +32,36 @@ export class ApiService {
     return data
   }
 
+  // ==================== UPDATE AGENDAMENTO ====================
+
+static async updateAgendamento(
+  agendamentoId: number, 
+  dados: {
+    qrcode_pagamento?: string | null
+    pix_copia_cola?: string | null
+    data_agendamento?: string | null
+    status?: string
+    pago?: boolean
+    data_pagamento?: string | null
+    observacoes?: string | null
+  }
+) {
+  const { data, error } = await supabase
+    .from('agendamentos')
+    .update(dados)
+    .eq('id', agendamentoId)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Erro ao atualizar agendamento:', error)
+    throw error
+  }
+
+  return data
+}
+
+
   static async createAgendamento(agendamento: NovoAgendamento) {
     const { data, error } = await supabase
       .from('agendamentos')
@@ -61,6 +91,8 @@ export class ApiService {
 
     return data as Agendamento
   }
+
+  
 
   static async cancelarAgendamento(agendamentoId: number) {
     const { data, error } = await supabase
