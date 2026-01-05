@@ -20,104 +20,102 @@ import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { formatDate } from '@/utils/format'
 
-export const AdminClientes = () => {
+export const AdminEmpresas = () => {
   const queryClient = useQueryClient()
   const [showModal, setShowModal] = useState(false)
   const [showDetalhesModal, setShowDetalhesModal] = useState(false)
-  const [selectedCliente, setSelectedCliente] = useState<any>(null)
+  const [selectedEmpresa, setSelectedEmpresa] = useState<any>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [filtroStatus, setFiltroStatus] = useState<string>('todos')
 
   const [formData, setFormData] = useState({
-    nome: '',
-    cpf: '',
+    razao_social: '',
+    cnpj: '',
     email: '',
     telefone: '',
     endereco: '',
     cidade: '',
     estado: '',
     cep: '',
-    data_nascimento: '',
   })
 
-  // Buscar clientes
-  const { data: clientes, isLoading } = useQuery({
-    queryKey: ['admin-clientes'],
-    queryFn: () => ApiService.getAllClientes(),
+  // Buscar empresas
+  const { data: empresas, isLoading } = useQuery({
+    queryKey: ['admin-empresas'],
+    queryFn: () => ApiService.getEmpresas(),
   })
+  
 
-  // Mutation criar/atualizar cliente
+  // Mutation criar/atualizar empresa
   const saveMutation = useMutation({
     mutationFn: async (data: any) => {
-      if (selectedCliente) {
+      if (selectedEmpresa) {
         // Atualizar
         const { error } = await ApiService.supabase
-          .from('clientes')
+          .from('empresas')
           .update(data)
-          .eq('id', selectedCliente.id)
+          .eq('id', selectedEmpresa.id)
         
         if (error) throw error
       } else {
         // Criar novo (precisa criar usuário primeiro)
         // Por enquanto apenas placeholder
-        console.log('Criar novo cliente:', data)
+        console.log('Criar nova Empresa:', data)
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['clientes'] })
+      queryClient.invalidateQueries({ queryKey: ['empresas'] })
       setShowModal(false)
       resetForm()
     },
   })
 
-  // Mutation para desativar cliente
+  // Mutation para desativar empresa
   const desativarMutation = useMutation({
     mutationFn: async (id: number) => {
       const { error } = await ApiService.supabase
-        .from('clientes')
+        .from('empresas')
         .update({ ativo: false })
         .eq('id', id)
       
       if (error) throw error
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['clientes'] })
+      queryClient.invalidateQueries({ queryKey: ['empresas'] })
     },
   })
 
   const resetForm = () => {
     setFormData({
-      nome: '',
-      cpf: '',
+      razao_social: '',
+      cnpj: '',
       email: '',
       telefone: '',
       endereco: '',
       cidade: '',
       estado: '',
       cep: '',
-      data_nascimento: '',
     })
-    setSelectedCliente(null)
+    setSelectedEmpresa(null)
   }
 
-  const handleEdit = (cliente: any) => {
-    setSelectedCliente(cliente)
+  const handleEdit = (empresa: any) => {
+    setSelectedEmpresa(empresa)
     setFormData({
-      nome: cliente.usuario?.nome || '',
-      cpf: cliente.cpf || '',
-      email: cliente.usuario?.email || '',
-      telefone: cliente.telefone || '',
-      endereco: cliente.endereco || '',
-      cidade: cliente.cidade || '',
-      estado: cliente.estado || '',
-      cep: cliente.cep || '',
-      data_nascimento: cliente.data_nascimento || '',
+      razao_social: empresa.razao_social || '',
+      cnpj: empresa.cnpj || '',
+      email: empresa.email || '',
+      telefone: empresa.telefone || '',
+      endereco: empresa.endereco || '',
+      cidade: empresa.cidade || '',
+      estado: empresa.estado || '',
+      cep: empresa.cep || '',
     })
     setShowModal(true)
   }
 
-  const handleVerDetalhes = (cliente: any) => {
-    setSelectedCliente(cliente)
+  const handleVerDetalhes = (empresa: any) => {
+    setSelectedEmpresa(empresa)
     setShowDetalhesModal(true)
   }
 
@@ -128,10 +126,10 @@ export const AdminClientes = () => {
 
   // Stats
   const stats = {
-    total: clientes?.length || 0,
-    ativos: clientes?.filter(c => c.ativo).length || 0,
-    inativos: clientes?.filter(c => !c.ativo).length || 0,
-    novosEsteMes: clientes?.filter(c => {
+    total: empresas?.length || 0,
+    ativos: empresas?.filter(c => c.ativo).length || 0,
+    inativos: empresas?.filter(c => !c.ativo).length || 0,
+    novosEsteMes: empresas?.filter(c => {
       const created = new Date(c.created_at)
       const now = new Date()
       return created.getMonth() === now.getMonth() && 
@@ -142,7 +140,7 @@ export const AdminClientes = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     )
   }
@@ -152,12 +150,12 @@ export const AdminClientes = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
-          <p className="text-gray-600 mt-1">Gerencie os clientes do sistema</p>
+          <h1 className="text-2xl font-bold text-gray-900">Empresas</h1>
+          <p className="text-gray-600 mt-1">Gerencie os empresas do sistema</p>
         </div>
         <Button onClick={() => setShowModal(true)} className="flex items-center gap-2">
           <Plus size={18} />
-          Novo Cliente
+          Nova Empresa
         </Button>
       </div>
 
@@ -219,7 +217,7 @@ export const AdminClientes = () => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
             <input
               type="text"
-              placeholder="Buscar por nome, CPF ou email..."
+              placeholder="Buscar por Razão Social, CNPJ ou email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
@@ -250,7 +248,7 @@ export const AdminClientes = () => {
             <thead>
               <tr className="bg-gray-50">
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Cliente
+                  Empresa
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
                   Contato
@@ -270,17 +268,17 @@ export const AdminClientes = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {clientes && clientes.length > 0 ? (
-                clientes.map((cliente: any) => (
-                  <tr key={cliente.id} className="hover:bg-gray-50 transition-colors">
+              {empresas && empresas.length > 0 ? (
+                empresas.map((empresa: any) => (
+                  <tr key={empresa.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
                           <Users size={18} className="text-primary-600" />
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900">{cliente.usuario?.nome || 'N/A'}</p>
-                          <p className="text-xs text-gray-500">{cliente.cpf || 'Sem CPF'}</p>
+                          <p className="font-medium text-gray-900">{empresa.razao_social || 'N/A'}</p>
+                          <p className="text-xs text-gray-500">{empresa.cnpj || 'Sem CNPJ'}</p>
                         </div>
                       </div>
                     </td>
@@ -288,53 +286,53 @@ export const AdminClientes = () => {
                       <div className="space-y-1 text-sm">
                         <div className="flex items-center gap-2 text-gray-600">
                           <Mail size={14} />
-                          {cliente.usuario?.email || 'N/A'}
+                          {empresa.email || 'N/A'}
                         </div>
                         <div className="flex items-center gap-2 text-gray-600">
                           <Phone size={14} />
-                          {cliente.telefone || 'N/A'}
+                          {empresa.telefone || 'N/A'}
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2 text-sm text-gray-600">
                         <MapPin size={14} />
-                        {cliente.cidade && cliente.estado 
-                          ? `${cliente.cidade}/${cliente.estado}`
+                        {empresa.cidade && empresa.estado 
+                          ? `${empresa.cidade}/${empresa.estado}`
                           : 'Não informado'
                         }
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                        cliente.ativo 
+                        empresa.ativo 
                           ? 'bg-green-100 text-green-700' 
                           : 'bg-red-100 text-red-700'
                       }`}>
-                        {cliente.ativo ? 'Ativo' : 'Inativo'}
+                        {empresa.ativo ? 'Ativo' : 'Inativo'}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
-                      {formatDate(cliente.created_at)}
+                      {formatDate(empresa.created_at)}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={() => handleVerDetalhes(cliente)}
+                          onClick={() => handleVerDetalhes(empresa)}
                           className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
                         >
                           <Eye size={16} />
                         </button>
                         <button
-                          onClick={() => handleEdit(cliente)}
+                          onClick={() => handleEdit(empresa)}
                           className="w-8 h-8 flex items-center justify-center rounded-lg bg-primary-50 text-primary-600 hover:bg-primary-100 transition-colors"
                         >
                           <Edit2 size={16} />
                         </button>
                         <button
                           onClick={() => {
-                            if (confirm('Deseja realmente desativar este cliente?')) {
-                              desativarMutation.mutate(cliente.id)
+                            if (confirm('Deseja realmente desativar este empresa?')) {
+                              desativarMutation.mutate(empresa.id)
                             }
                           }}
                           className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
@@ -349,7 +347,7 @@ export const AdminClientes = () => {
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center">
                     <Users size={48} className="mx-auto text-gray-300 mb-3" />
-                    <p className="text-gray-500">Nenhum cliente encontrado</p>
+                    <p className="text-gray-500">Nenhuma Empresa encontrada</p>
                   </td>
                 </tr>
               )}
@@ -358,28 +356,28 @@ export const AdminClientes = () => {
         </div>
       </Card>
 
-      {/* Modal Novo/Editar Cliente */}
+      {/* Modal Novo/Editar empresa */}
       <Modal
         isOpen={showModal}
         onClose={() => {
           setShowModal(false)
           resetForm()
         }}
-        title={selectedCliente ? 'Editar Cliente' : 'Novo Cliente'}
+        title={selectedEmpresa ? 'Editar empresa' : 'Novo empresa'}
         size="lg"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
-              label="Nome Completo *"
-              value={formData.nome}
-              onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+              label="Razão Social"
+              value={formData.razao_social}
+              onChange={(e) => setFormData({ ...formData, razao_social: e.target.value })}
               required
             />
             <Input
-              label="CPF *"
-              value={formData.cpf}
-              onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
+              label="CNPJ"
+              value={formData.cnpj}
+              onChange={(e) => setFormData({ ...formData, cnpj: e.target.value })}
               required
             />
             <Input
@@ -389,16 +387,10 @@ export const AdminClientes = () => {
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             />
             <Input
-              label="Telefone *"
+              label="Telefone"
               value={formData.telefone}
               onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
               required
-            />
-            <Input
-              label="Data de Nascimento"
-              type="date"
-              value={formData.data_nascimento}
-              onChange={(e) => setFormData({ ...formData, data_nascimento: e.target.value })}
             />
             <Input
               label="CEP"
@@ -436,7 +428,7 @@ export const AdminClientes = () => {
               Cancelar
             </Button>
             <Button type="submit" isLoading={saveMutation.isPending}>
-              {selectedCliente ? 'Atualizar' : 'Cadastrar'}
+              {selectedEmpresa ? 'Atualizar' : 'Cadastrar'}
             </Button>
           </div>
         </form>
@@ -446,10 +438,10 @@ export const AdminClientes = () => {
       <Modal
         isOpen={showDetalhesModal}
         onClose={() => setShowDetalhesModal(false)}
-        title="Detalhes do Cliente"
+        title="Detalhes da empresa"
         size="md"
       >
-        {selectedCliente && (
+        {selectedEmpresa && (
           <div className="space-y-6">
             <div className="flex items-center gap-4 pb-6 border-b">
               <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center">
@@ -457,42 +449,43 @@ export const AdminClientes = () => {
               </div>
               <div>
                 <h3 className="text-xl font-bold text-gray-900">
-                  {selectedCliente.usuario?.nome}
+                  {selectedEmpresa.razao_social}
                 </h3>
-                <p className="text-gray-600">{selectedCliente.cpf}</p>
+                <p className="text-gray-600">{selectedEmpresa.cnpj}</p>
               </div>
             </div>
 
             <div className="space-y-4">
               <div>
                 <p className="text-sm font-medium text-gray-600 mb-1">Email</p>
-                <p className="text-gray-900">{selectedCliente.usuario?.email || 'Não informado'}</p>
+                <p className="text-gray-900">{selectedEmpresa.email || 'Não informado'}</p>
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-600 mb-1">Telefone</p>
-                <p className="text-gray-900">{selectedCliente.telefone || 'Não informado'}</p>
+                <p className="text-gray-900">{selectedEmpresa.telefone || 'Não informado'}</p>
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-600 mb-1">Endereço</p>
                 <p className="text-gray-900">
-                  {selectedCliente.endereco || 'Não informado'}
-                  {selectedCliente.cidade && `, ${selectedCliente.cidade}`}
-                  {selectedCliente.estado && `/${selectedCliente.estado}`}
+                  {selectedEmpresa.endereco || 'Não informado'}
+                  {selectedEmpresa.cidade && `, ${selectedEmpresa.cidade}`}
+                  {selectedEmpresa.estado && `/${selectedEmpresa.estado}`}
+                  {selectedEmpresa.cep && ` - ${selectedEmpresa.cep}`}
                 </p>
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-600 mb-1">Status</p>
                 <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                  selectedCliente.ativo 
+                  selectedEmpresa.ativo 
                     ? 'bg-green-100 text-green-700' 
                     : 'bg-red-100 text-red-700'
                 }`}>
-                  {selectedCliente.ativo ? 'Ativo' : 'Inativo'}
+                  {selectedEmpresa.ativo ? 'Ativo' : 'Inativo'}
                 </span>
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-600 mb-1">Cadastrado em</p>
-                <p className="text-gray-900">{formatDate(selectedCliente.created_at)}</p>
+                <p className="text-gray-900">{formatDate(selectedEmpresa.created_at)}</p>
               </div>
             </div>
 

@@ -25,6 +25,8 @@ import { AdminDashboard } from './pages/admin/AdminDashboard'
 import { AdminClientes } from './pages/admin/AdminClientes'
 import { AdminAgendamentos } from './pages/admin/AdminAgendamentos'
 import { AdminAgendamentosPendentes } from './pages/admin/AdminAgendamentosPendentes'
+import { AdminEmpresas } from './pages/admin/AdminEmpresas'
+import { AdminEstabelecimentos } from './pages/admin/AdminEstabelecimentos'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -86,6 +88,12 @@ function AppRoutes() {
         <Route path="clientes" element={<AdminClientes />} />
         <Route path="agendamentos" element={<AdminAgendamentos />} />
         <Route path="agendamentos/pendentes" element={<AdminAgendamentosPendentes />} />
+        <Route path="empresas" element={<AdminEmpresas />} />
+        <Route path="estabelecimentos" element={<AdminEstabelecimentos />} />
+        {/* <Route path="reembolsos" element={<div>Admin Reembolsos</div>} />
+        <Route path="indicacoes" element={<div>Admin Indicações</div>} />
+        <Route path="financeiro" element={<div>Admin Financeiro</div>} />
+        <Route path="configuracoes" element={<div>Admin Configurações</div>} /> */}
       </Route>
 
       <Route path="/" element={<Navigate to="/login" replace />} />

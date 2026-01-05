@@ -97,7 +97,7 @@ export const AdminLayout = () => {
         {/* Logo */}
         <div className="px-6 pt-8 pb-8 border-b border-white/10 mb-8">
           <div className="bg-white p-4 rounded-xl text-center">
-            <h1 className="text-primary font-bold text-2xl">Amém Saúde</h1>
+            <img src="/logo-amem.png" alt="Admin Logo" className="mx-auto h-10 mb-2" />
             <p className="text-secondary text-[11px] mt-1 font-medium">Sistema Administrativo</p>
           </div>
         </div>

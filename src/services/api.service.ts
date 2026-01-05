@@ -441,6 +441,92 @@ static async updateAgendamento(
     return data
   }
 
+  // ==================== EMPRESAS ====================
+
+  static async getEmpresas() {
+    const { data, error } = await supabase
+      .from('empresas')
+      .select(`
+        *
+      `)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return data
+  }
+
+  static async postarEmpresa(empresa: {
+    razao_social: string
+    cnpj: string
+    email: string
+    telefone: string
+    endereco?: string
+    cidade?: string
+    estado?: string
+    cep?: string
+  }) {
+    const { data, error } = await supabase
+      .from('empresas')
+      .insert(empresa)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  }
+
+  // ==================== ESTABELECIMENTOS ====================
+  
+  static async postarEstabelecimento(estabelecimento: {
+    nome: string
+    endereco: string
+    cidade: string
+    estado: string
+    cep?: string
+    telefone?: string
+    especialidades: number[] // IDs das especialidades
+  }) {
+    const { data, error } = await supabase
+      .from('estabelecimentos')
+      .insert(estabelecimento)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  }
+  static async getAgendamentosPendentes() {
+    const { data, error } = await supabase
+      .from('agendamentos')
+      .select(`
+        *,
+        cliente:clientes(
+          id,
+          cpf,
+          usuario:usuarios(id, nome, email, telefone)
+        ),
+        especialidade:especialidades(id, nome, valor),
+        estabelecimento:estabelecimentos(id, nome, endereco, cidade, estado)
+      `)
+      .eq('status', 'pendente')
+      .order('data_solicitacao', { ascending: false })
+
+    if (error) throw error
+    return data
+  } 
+
+  static async getAllEstabelecimentos() {
+    const { data, error } = await supabase
+      .from('estabelecimentos')
+      .select(`
+        *
+      `)
+      .order('nome')
+
+    if (error) throw error
+    return data
+  }
+
   // ==================== INDICAÇÕES ====================
 
   static async getIndicacoes(clienteId: number) {
@@ -575,4 +661,52 @@ static async updateAgendamento(
       throw error
     }
   }
+  // ==================== INFORMAR PAGAMENTO ====================
+
+static async informarPagamento(agendamentoId: number) {
+  try {
+    // 1. Marcar que cliente informou pagamento
+    const { error: updateError } = await supabase
+      .from('agendamentos')
+      .update({
+        cliente_informou_pagamento: true,
+        data_informacao_pagamento: new Date().toISOString()
+      })
+      .eq('id', agendamentoId)
+
+    if (updateError) {
+      console.error('Erro ao atualizar agendamento:', updateError)
+      throw updateError
+    }
+
+    // 2. Buscar admin para notificar
+    const { data: adminUser, error: adminError } = await supabase
+      .from('usuarios')
+      .select('id')
+      .eq('tipo_usuario', 'admin')
+      .limit(1)
+      .single()
+
+    if (adminError) {
+      console.error('Erro ao buscar admin:', adminError)
+    }
+
+    // 3. Criar notificação para admin
+    if (adminUser) {
+      await this.createNotificacao({
+        usuario_id: adminUser.id,
+        titulo: 'Cliente Informou Pagamento',
+        mensagem: `O cliente informou que realizou o pagamento do agendamento #${agendamentoId}. Verifique e confirme.`,
+        tipo: 'alerta',
+        link: `/admin/agendamentos/${agendamentoId}`,
+      })
+    }
+
+    // 4. Retornar sucesso
+    return { success: true, message: 'Pagamento informado com sucesso!' }
+  } catch (error) {
+    console.error('Erro ao informar pagamento:', error)
+    throw error
+  }
+}
 }
