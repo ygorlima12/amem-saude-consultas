@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
-import { Calendar, MapPin, User, DollarSign, CheckCircle, Clock } from 'lucide-react'
+import { Calendar, MapPin, User, DollarSign, CheckCircle, Clock, XCircle } from 'lucide-react'
 import { formatDate, formatCurrency, getStatusLabel } from '@/utils/format'
 import { ApiService } from '@/services/api.service'
 
@@ -15,28 +15,24 @@ export const AdminAgendamentos = () => {
 
   // Buscar todos os agendamentos
   const { data: agendamentos, isLoading } = useQuery({
-    queryKey: ['admin-agendamentos', filtroStatus],
+    queryKey: ['todos-agendamentos'],
     queryFn: async () => {
-      let query = ApiService.supabase
-        .from('agendamentos')
-        .select(`
-          *,
-          cliente:clientes(*, usuario:usuarios(*)),
-          especialidade:especialidades(*),
-          estabelecimento:estabelecimentos(*)
-        `)
-        .order('data_solicitacao', { ascending: false })
-
-      if (filtroStatus !== 'todos') {
-        query = query.eq('status', filtroStatus)
-      }
-
-      const { data, error } = await query
-
-      if (error) throw error
-      return data
+      const response = await ApiService.getAllAgendamentos()
+      return response
     },
+    refetchInterval: 30000, // Atualiza a cada 30 segundos
   })
+
+  // ==================== CORREÇÃO: APLICAR FILTRO ====================
+  const agendamentosFiltrados = useMemo(() => {
+    if (!agendamentos) return []
+    
+    if (filtroStatus === 'todos') {
+      return agendamentos
+    }
+    
+    return agendamentos.filter((a: any) => a.status === filtroStatus)
+  }, [agendamentos, filtroStatus])
 
   // Calcular estatísticas
   const hoje = new Date().toISOString().split('T')[0]
@@ -71,7 +67,11 @@ export const AdminAgendamentos = () => {
   }
 
   if (isLoading) {
-    return <div className="flex items-center justify-center min-h-screen">Carregando...</div>
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    )
   }
 
   return (
@@ -122,43 +122,43 @@ export const AdminAgendamentos = () => {
             variant={filtroStatus === 'todos' ? 'primary' : 'outline'}
             onClick={() => setFiltroStatus('todos')}
           >
-            Todos
+            Todos ({agendamentos?.length || 0})
           </Button>
           <Button
             size="sm"
             variant={filtroStatus === 'pendente' ? 'primary' : 'outline'}
             onClick={() => setFiltroStatus('pendente')}
           >
-            Pendentes
+            Pendentes ({stats.pendentes})
           </Button>
           <Button
             size="sm"
             variant={filtroStatus === 'confirmado' ? 'primary' : 'outline'}
             onClick={() => setFiltroStatus('confirmado')}
           >
-            Confirmados
+            Confirmados ({stats.confirmados})
           </Button>
           <Button
             size="sm"
             variant={filtroStatus === 'realizado' ? 'primary' : 'outline'}
             onClick={() => setFiltroStatus('realizado')}
           >
-            Realizados
+            Realizados ({agendamentos?.filter((a: any) => a.status === 'realizado').length || 0})
           </Button>
           <Button
             size="sm"
             variant={filtroStatus === 'cancelado' ? 'primary' : 'outline'}
             onClick={() => setFiltroStatus('cancelado')}
           >
-            Cancelados
+            Cancelados ({agendamentos?.filter((a: any) => a.status === 'cancelado').length || 0})
           </Button>
         </div>
       </Card>
 
-      {/* Lista de Agendamentos */}
+      {/* Lista de Agendamentos - USANDO agendamentosFiltrados */}
       <div className="space-y-4">
-        {agendamentos && agendamentos.length > 0 ? (
-          agendamentos.map((agendamento: any) => (
+        {agendamentosFiltrados && agendamentosFiltrados.length > 0 ? (
+          agendamentosFiltrados.map((agendamento: any) => (
             <Card key={agendamento.id}>
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div className="flex-1">
@@ -184,7 +184,17 @@ export const AdminAgendamentos = () => {
                     </div>
 
                     <div className="space-y-2">
-                      {agendamento.data_agendamento ? (
+                      {agendamento.status === 'cancelado' ? (
+                        <div className="flex items-center gap-2 text-red-600">
+                          <XCircle size={14} />
+                          <span>Agendamento Cancelado</span>
+                        </div>
+                      ) : agendamento.status === 'confirmado' ? (
+                        <div className="flex items-center gap-2 text-green-600">
+                          <CheckCircle size={14} />
+                          <span>Atendimento Confirmado</span>
+                        </div>
+                      ) : agendamento.data_agendamento ? (
                         <>
                           <div className="flex items-center gap-2">
                             <Calendar size={14} className="text-gray-600" />
@@ -200,12 +210,12 @@ export const AdminAgendamentos = () => {
                             </span>
                           </div>
                         </>
-                      ) : (
+                      ) : agendamento.status === 'pendente' ? (
                         <div className="flex items-center gap-2 text-yellow-600">
                           <Clock size={14} />
                           <span>Aguardando confirmação</span>
                         </div>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -246,7 +256,7 @@ export const AdminAgendamentos = () => {
               <p className="text-gray-600">
                 {filtroStatus === 'todos'
                   ? 'Ainda não há agendamentos no sistema'
-                  : `Nenhum agendamento com status "${filtroStatus}"`}
+                  : `Nenhum agendamento com status "${getStatusLabel(filtroStatus)}"`}
               </p>
             </div>
           </Card>

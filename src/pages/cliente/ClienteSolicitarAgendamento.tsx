@@ -355,22 +355,29 @@ export const ClienteSolicitarAgendamento = () => {
                   )}
                 </div>
 
+                
                 <div>
                   <label className="block font-semibold text-text-primary mb-2 text-sm">
-                    Data Preferencial *
+                    Dia da semana Preferencial *
                   </label>
-                  <input
-                    type="date"
+                  <select
                     required
                     value={formData.dataPreferencial}
                     onChange={(e) =>
                       setFormData({ ...formData, dataPreferencial: e.target.value })
                     }
-                    min={new Date().toISOString().split('T')[0]}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-sm transition-all focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(13,181,166,0.1)]"
-                  />
+                  >
+                    <option value="">Selecione</option>
+                    <option value="manha">Segunda</option>
+                    <option value="tarde">Terça</option>
+                    <option value="noite">Quarta</option>
+                    <option value="noite">Quinta</option>
+                    <option value="noite">Sexta</option>
+                    <option value="noite">Sábado</option>
+                    
+                  </select>
                 </div>
-
                 <div>
                   <label className="block font-semibold text-text-primary mb-2 text-sm">
                     Período Preferencial *
@@ -384,9 +391,10 @@ export const ClienteSolicitarAgendamento = () => {
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-sm transition-all focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(13,181,166,0.1)]"
                   >
                     <option value="">Selecione</option>
-                    <option value="manha">Manhã (08:00 - 12:00)</option>
-                    <option value="tarde">Tarde (13:00 - 17:00)</option>
-                    <option value="noite">Noite (18:00 - 21:00)</option>
+                    <option value="manha">Início da Manhã (08h às 10h)</option>
+                    <option value="manha">Fim da Manhã (10h às 12h)</option>
+                    <option value="tarde">Início da Tarde (13h às 15h)</option>
+                    <option value="noite">Fim da Tarde (15h às 17h)</option>
                   </select>
                 </div>
 

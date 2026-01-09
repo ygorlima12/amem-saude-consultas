@@ -32,21 +32,33 @@ const menuSections = [
     items: [
       { path: '/admin/clientes', icon: Users, label: 'Clientes' },
       { path: '/admin/empresas', icon: Building2, label: 'Empresas' },
+    ],
+  },
+  {
+    title: 'AGENDAMENTOS',
+    items: [
+      { path: '/admin/agendamentos/pendentes', icon: AlertCircle, label: 'Agendamentos Pendentes', badge: true },
+      { path: '/admin/agendamentos', icon: Calendar, label: 'Agendamentos' },
+    ],
+  },
+  {
+    title: 'REEMBOLSOS',
+    items: [
+      { path: '/admin/reembolsos/pendentes', icon: AlertCircle, label: 'Reembolsos Pendentes' },
+      { path: '/admin/reembolsos', icon: FileText, label: 'Reembolsos' },
+    ],
+  },
+  {
+    title: 'INDICAÇÕES',
+    items: [
+      { path: '/admin/estabelecimentos/indicados', icon: AlertCircle, label: 'Estabelecimentos Indicados' },
       { path: '/admin/estabelecimentos', icon: MapPin, label: 'Estabelecimentos' },
     ],
   },
   {
-    title: 'OPERACIONAL',
+    title: 'RELATÓRIOS',
     items: [
-      { path: '/admin/agendamentos/pendentes', icon: AlertCircle, label: 'Pendentes', badge: true },
-      { path: '/admin/agendamentos', icon: Calendar, label: 'Agendamentos' },
-      { path: '/admin/reembolsos', icon: FileText, label: 'Reembolsos' },
-      { path: '/admin/indicacoes', icon: ClipboardList, label: 'Indicações' },
-    ],
-  },
-  {
-    title: 'FINANCEIRO',
-    items: [
+      { path: '/admin/relatorios', icon: FileText, label: 'Relatórios' },
       { path: '/admin/financeiro', icon: DollarSign, label: 'Financeiro' },
     ],
   },

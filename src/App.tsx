@@ -27,6 +27,11 @@ import { AdminAgendamentos } from './pages/admin/AdminAgendamentos'
 import { AdminAgendamentosPendentes } from './pages/admin/AdminAgendamentosPendentes'
 import { AdminEmpresas } from './pages/admin/AdminEmpresas'
 import { AdminEstabelecimentos } from './pages/admin/AdminEstabelecimentos'
+import { AdminConfiguracoes } from './pages/admin/Adminconfiguracoes'
+import { AdminReembolsosPendentes } from './pages/admin/AdminReembolsosPendentes'
+import { AdminReembolsos } from './pages/admin/AdminReembolsos'
+import { AdminRelatorios } from './pages/admin/AdminRelatorios'
+import { AdminEstabelecimentosIndicados } from './pages/admin/AdminEstabelecimentosIndicados'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -92,8 +97,15 @@ function AppRoutes() {
         <Route path="estabelecimentos" element={<AdminEstabelecimentos />} />
         {/* <Route path="reembolsos" element={<div>Admin Reembolsos</div>} />
         <Route path="indicacoes" element={<div>Admin Indicações</div>} />
-        <Route path="financeiro" element={<div>Admin Financeiro</div>} />
-        <Route path="configuracoes" element={<div>Admin Configurações</div>} /> */}
+        <Route path="financeiro" element={<div>Admin Financeiro</div>} />*/}
+        <Route path="/admin/reembolsos" element={<AdminReembolsos />} />
+        <Route path="/admin/reembolsos/pendentes" element={<AdminReembolsosPendentes />} />
+        <Route path="configuracoes" element={<AdminConfiguracoes />} />
+        <Route path="/admin/relatorios" element={<AdminRelatorios />} />
+        <Route 
+  path="/admin/estabelecimentos/indicados" 
+  element={<AdminEstabelecimentosIndicados />} 
+/>
       </Route>
 
       <Route path="/" element={<Navigate to="/login" replace />} />
