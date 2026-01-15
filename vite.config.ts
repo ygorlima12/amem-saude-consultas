@@ -15,5 +15,12 @@ export default defineConfig({
     open: true,
     host: true,
     allowedHosts: ['.ngrok-free.dev'],
+    proxy: {
+      '/webhook': {
+        target: 'https://n8n.assorelseg.com.br',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
 })

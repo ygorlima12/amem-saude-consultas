@@ -7,12 +7,9 @@ export class AuthService {
    * Faz login do usuário
    */
   static async login(credentials: LoginForm) {
-    // Modo de desenvolvimento - login com dados mock
     if (isDevelopmentMode()) {
       console.log('🔧 Modo de desenvolvimento ativo - Usando dados mock')
-      console.log('Use: demo@cliente.com ou demo@admin.com (qualquer senha)')
-
-      await new Promise(resolve => setTimeout(resolve, 500)) // Simula delay
+      await new Promise(resolve => setTimeout(resolve, 500))
 
       if (credentials.email === 'demo@admin.com') {
         return {
@@ -29,7 +26,6 @@ export class AuthService {
       }
     }
 
-    // Modo produção - login real com Supabase
     try {
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: credentials.email,
@@ -39,7 +35,7 @@ export class AuthService {
       if (authError) throw authError
       if (!authData.user) throw new Error('Erro ao fazer login')
 
-      // Buscar dados do usuário na tabela usuarios
+      // Buscar dados do usuário
       const { data: userData, error: userError } = await supabase
         .from('usuarios')
         .select('*')
@@ -68,15 +64,23 @@ export class AuthService {
         }
       }
 
+      // ✅ CORRETO: Buscar cliente por usuario_id (sua estrutura atual)
       let clienteData = null
       if (userData.tipo_usuario === 'cliente') {
         const { data, error } = await supabase
           .from('clientes')
           .select('*')
           .eq('usuario_id', userData.id)
-          .single()
+          .maybeSingle()
 
-        if (!error) clienteData = data
+        if (error) {
+          console.error('Erro ao buscar cliente:', error)
+        } else if (data) {
+          clienteData = data
+          console.log('✅ Cliente encontrado:', clienteData)
+        } else {
+          console.warn('⚠️ Cliente não encontrado para usuario_id:', userData.id)
+        }
       }
 
       return {
@@ -94,7 +98,6 @@ export class AuthService {
    * Cadastra um novo cliente
    */
   static async cadastrarCliente(dados: CadastroClienteForm) {
-    // Modo de desenvolvimento
     if (isDevelopmentMode()) {
       console.log('🔧 Modo de desenvolvimento - Cadastro simulado')
       await new Promise(resolve => setTimeout(resolve, 500))
@@ -120,7 +123,6 @@ export class AuthService {
       }
     }
 
-    // Modo produção
     try {
       // 1. Criar usuário no Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -136,7 +138,7 @@ export class AuthService {
       if (authError) throw authError
       if (!authData.user) throw new Error('Erro ao criar usuário')
 
-      // 2. Criar registro na tabela usuarios MANUALMENTE
+      // 2. Criar registro na tabela usuarios
       const { data: userData, error: userError } = await supabase
         .from('usuarios')
         .insert({
@@ -154,17 +156,20 @@ export class AuthService {
         throw userError
       }
 
-      // 3. Criar registro de cliente
+      // 3. Criar registro de cliente - usa usuario_id (sua estrutura)
       const { data: clienteData, error: clienteError } = await supabase
         .from('clientes')
         .insert({
-          usuario_id: userData.id,
+          usuario_id: userData.id,  // ✅ Sua estrutura usa usuario_id
           cpf: dados.cpf,
+          tipo_pessoa: 'fisica',
           data_nascimento: dados.dataNascimento || null,
           endereco: dados.endereco || null,
           cidade: dados.cidade || null,
           estado: dados.estado || null,
           cep: dados.cep || null,
+          data_entrada: new Date().toISOString().split('T')[0],
+          ativo: true,
         })
         .select()
         .single()
@@ -245,15 +250,23 @@ export class AuthService {
 
       if (userError) throw userError
 
+      // ✅ CORRETO: Buscar cliente por usuario_id (sua estrutura atual)
       let clienteData = null
       if (userData.tipo_usuario === 'cliente') {
         const { data, error } = await supabase
           .from('clientes')
           .select('*')
           .eq('usuario_id', userData.id)
-          .single()
+          .maybeSingle()
 
-        if (!error) clienteData = data
+        if (error) {
+          console.error('Erro ao buscar cliente:', error)
+        } else if (data) {
+          clienteData = data
+          console.log('✅ Cliente carregado:', clienteData)
+        } else {
+          console.warn('⚠️ Cliente não encontrado para usuario_id:', userData.id)
+        }
       }
 
       return {

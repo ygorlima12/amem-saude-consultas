@@ -44,7 +44,7 @@ const menuSections = [
   {
     title: 'REEMBOLSOS',
     items: [
-      { path: '/admin/reembolsos/pendentes', icon: AlertCircle, label: 'Reembolsos Pendentes' },
+      { path: '/admin/reembolsos/pendentes', icon: AlertCircle, label: 'Reembolsos Pendentes', badgeReembolso: true },
       { path: '/admin/reembolsos', icon: FileText, label: 'Reembolsos' },
     ],
   },
@@ -81,6 +81,15 @@ export const AdminLayout = () => {
     queryKey: ['agendamentos-pendentes-count'],
     queryFn: async () => {
       const data = await ApiService.getAgendamentosPendentes()
+      return data?.length || 0
+    },
+    refetchInterval: 30000, // Atualiza a cada 30 segundos
+  })
+  // Buscar quantidade de reembolsos pendentes
+  const { data: pendentesCountReembolso } = useQuery({
+    queryKey: ['reembolsos-pendentes-count'],
+    queryFn: async () => {
+      const data = await ApiService.getReembolsosPendentes()
       return data?.length || 0
     },
     refetchInterval: 30000, // Atualiza a cada 30 segundos
@@ -125,6 +134,8 @@ export const AdminLayout = () => {
                 const Icon = item.icon
                 const isActive = location.pathname === item.path
                 const showBadge = item.badge && pendentesCount && pendentesCount > 0
+                const badgeLimit = 99
+                const showBadgeReembolso = item.badgeReembolso && pendentesCountReembolso && pendentesCountReembolso > 0
 
                 return (
                   <Link
@@ -147,6 +158,11 @@ export const AdminLayout = () => {
                     {showBadge && (
                       <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
                         {pendentesCount}
+                      </span>
+                    )}
+                    {showBadgeReembolso && (
+                      <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
+                        {pendentesCountReembolso}
                       </span>
                     )}
                   </Link>

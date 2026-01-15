@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
-import { X, Menu, LogOut, Bell, User, ChevronRight } from 'lucide-react'
+import { X, Menu, LogOut, Bell, ChevronRight } from 'lucide-react'
 
 const menuItems = [
   { path: '/cliente', label: 'Início', section: 'MENU PRINCIPAL' },
@@ -11,14 +11,12 @@ const menuItems = [
   { path: '/cliente/cancelar', label: 'Cancelar Agendamento', section: 'AGENDAMENTOS' },
   { path: '/cliente/pagamentos', label: 'Coparticipação', section: 'PAGAMENTOS' },
   { path: '/cliente/guias', label: 'Guias de Atendimento', section: 'DOCUMENTOS' },
-  { path: '/cliente/reembolsos', label: 'Solicitar Reembolso', section: 'REEMBOLSO' },
-  { path: '/cliente/reembolso-consulta', label: 'Reembolso - Consulta', section: 'REEMBOLSO' },
-  { path: '/cliente/reembolso-exames', label: 'Reembolso - Exames', section: 'REEMBOLSO' },
+  { path: '/cliente/reembolsos/solicitar', label: 'Solicitar Reembolso', section: 'REEMBOLSO' },
+  { path: '/cliente/reembolsos', label: 'Histórico de Reembolsos', section: 'REEMBOLSO' },
   { path: '/cliente/indicacao', label: 'Indicar Estabelecimento', section: 'INDICAÇÃO' },
   { path: '/cliente/ajuda', label: 'Ajuda', section: 'SUPORTE' },
 ]
 
-// Agrupar itens por seção
 const groupedMenu = menuItems.reduce((acc, item) => {
   if (!acc[item.section]) {
     acc[item.section] = []
@@ -30,7 +28,7 @@ const groupedMenu = menuItems.reduce((acc, item) => {
 export const ClienteLayout = () => {
   const location = useLocation()
   const navigate = useNavigate()
-  const { user, logout } = useAuth()
+  const { user, loading, logout } = useAuth() // ✅ CORRETO: user (do zustand)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const handleLogout = async () => {
@@ -39,6 +37,33 @@ export const ClienteLayout = () => {
       navigate('/login')
     }
   }
+
+  // ✅ CORRIGIDO: Usar loading do zustand
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-bg">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Carregando...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // ✅ ADICIONADO: Proteção mesmo depois do loading
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-bg">
+        <div className="text-center">
+          <p className="text-gray-600">Redirecionando...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // ✅ CORRIGIDO: Extrair com proteção
+  const primeiroNome = (user?.nome || 'Usuário').split(' ')[0]
+  const inicialNome = (user?.nome || 'U').charAt(0).toUpperCase()
 
   return (
     <div className="flex h-screen overflow-hidden bg-bg">
@@ -55,7 +80,7 @@ export const ClienteLayout = () => {
         {/* Logo Header */}
         <div className="bg-white p-6 border-b border-white/10 text-center">
           <div className="max-w-[160px] mx-auto mb-4">
-            <div className="text-primary font-bold text-2xl">Amém Saúde</div>
+            <img src="/logo-amem.png" alt="Admin Logo" className="mx-auto h-10 mb-2" />
             <div className="text-secondary text-xs mt-1">Portal do Beneficiário</div>
           </div>
         </div>
@@ -118,7 +143,7 @@ export const ClienteLayout = () => {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden lg:ml-[280px]">
-        {/* Top Header - Mais Moderno */}
+        {/* Top Header */}
         <header className="bg-white border-b border-gray-100 flex-shrink-0 sticky top-0 z-30 backdrop-blur-sm bg-white/95">
           <div className="px-6 sm:px-10 py-4">
             <div className="flex items-center justify-between gap-4">
@@ -158,12 +183,12 @@ export const ClienteLayout = () => {
                 <div className="hidden sm:flex items-center gap-3 pl-3 border-l border-gray-200">
                   <div className="text-right">
                     <p className="text-sm font-semibold text-text-primary leading-tight">
-                      {user?.nome.split(' ')[0]}
+                      {primeiroNome}
                     </p>
                     <p className="text-xs text-text-secondary">Beneficiário</p>
                   </div>
                   <div className="w-10 h-10 rounded-full bg-gradient-avatar flex items-center justify-center text-white font-bold shadow-sm ring-2 ring-white">
-                    {user?.nome.charAt(0).toUpperCase()}
+                    {inicialNome}
                   </div>
                 </div>
               </div>

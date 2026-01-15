@@ -70,7 +70,7 @@ export const ClienteSolicitarAgendamento = () => {
 
   const buscarCEP = async () => {
     const cepLimpo = formData.cep.replace(/\D/g, '')
-    
+
     if (cepLimpo.length !== 8) {
       setCepError('CEP deve conter 8 dígitos')
       return
@@ -121,7 +121,7 @@ export const ClienteSolicitarAgendamento = () => {
     const apenasNumeros = value.replace(/\D/g, '')
     const cepFormatado = apenasNumeros.replace(/^(\d{5})(\d{3})$/, '$1-$2')
     setFormData({ ...formData, cep: cepFormatado })
-    
+
     if (cepInfo) {
       setCepInfo(null)
       setEstabelecimentosSugeridos([])
@@ -141,7 +141,7 @@ export const ClienteSolicitarAgendamento = () => {
       queryClient.invalidateQueries({ queryKey: ['agendamentos'] })
       setShowSuccessAlert(true)
       setTimeout(() => setShowSuccessAlert(false), 5000)
-      
+
       setAgendamentoPendente({ agendamento, pagamento })
       setShowConfirmacaoModal(true)
     },
@@ -164,7 +164,7 @@ export const ClienteSolicitarAgendamento = () => {
 
     setShowConfirmacaoModal(false)
     setConfirmouLeitura(false)
-    
+
     setFormData({
       especialidadeId: '',
       estabelecimentoId: '',
@@ -175,7 +175,7 @@ export const ClienteSolicitarAgendamento = () => {
     })
     setCepInfo(null)
     setEstabelecimentosSugeridos([])
-    
+
     await gerarQRCodePagamento(
       agendamentoPendente.agendamento.id,
       agendamentoPendente.pagamento.id,
@@ -185,33 +185,58 @@ export const ClienteSolicitarAgendamento = () => {
 
   const gerarQRCodePagamento = async (agendamentoId: number, pagamentoId: string, valor: number) => {
     setLoadingPayment(true)
-    
+
     try {
-      const webhookUrl = 'https://n8n.assorelseg.com.br/webhook/pix-payment'
+      // Em desenvolvimento, usamos o proxy do Vite para evitar erro de CORS
+      // Em produção, usa a URL direta (necessário que o servidor n8n aceite a origem)
+      const webhookUrl = import.meta.env.DEV
+        ? '/webhook/pix-payment'
+        : 'https://n8n.assorelseg.com.br/webhook/pix-payment'
+      console.log('Dados do pagamento (debug):', {
+        agendamentoId,
+        pagamentoId,
+        valor
+      })
+
+      const payload = {
+        valor: valor,
+        descricao: 'Pagamento Coparticipacao',
+        paymentId: pagamentoId,
+        agendamentoId: agendamentoId,
+      }
+
+      console.log('Payload enviado para webhook:', JSON.stringify(payload))
+
       const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          valor: valor,
-          descricao: 'Pagamento Coparticipacao',
-          paymentId: pagamentoId,
-          agendamentoId: agendamentoId,
-        }),
+        body: JSON.stringify(payload),
       })
 
       if (!response.ok) {
-        throw new Error('Erro ao gerar pagamento PIX')
+        const text = await response.text()
+        console.error('Erro response webhook:', text)
+        try {
+          const jsonError = JSON.parse(text)
+          throw new Error(jsonError.message || jsonError.error || `Erro do Servidor: ${response.status}`)
+        } catch (e) {
+          throw new Error(`Erro ao gerar pagamento PIX: ${response.status} - ${text.substring(0, 50)}`)
+        }
       }
 
       const data = await response.json()
-      
+
       let qrCodeBase64 = null
       let pixCopiaECola = null
-      
+
       if (Array.isArray(data) && data.length > 0) {
         const firstItem = data[0]
         qrCodeBase64 = firstItem.encodedImage || null
         pixCopiaECola = firstItem.payload || null
+      } else if (typeof data === 'object') {
+        // Fallback caso a estrutura não seja array
+        qrCodeBase64 = data.encodedImage || null
+        pixCopiaECola = data.payload || null
       }
 
       const newPaymentData: PaymentModalData = {
@@ -322,7 +347,7 @@ export const ClienteSolicitarAgendamento = () => {
                   <label className="block font-semibold text-text-primary mb-2 text-sm">
                     Informe o CEP para localizar a clínica mais próxima*
                   </label>
-                  
+
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -351,9 +376,9 @@ export const ClienteSolicitarAgendamento = () => {
 
                   <p className="text-sm text-gray-600 mt-2">
                     Caso não saiba seu CEP:{' '}
-                    <a 
-                      href="https://buscacepinter.correios.com.br/app/endereco/index.php" 
-                      target="_blank" 
+                    <a
+                      href="https://buscacepinter.correios.com.br/app/endereco/index.php"
+                      target="_blank"
                       rel="noopener noreferrer"
                       className="text-primary hover:underline font-medium"
                     >
@@ -381,7 +406,7 @@ export const ClienteSolicitarAgendamento = () => {
                   <label className="block font-semibold text-text-primary mb-2 text-sm">
                     Sugestão de Estabelecimento (opcional)
                   </label>
-                  
+
                   <select
                     value={formData.estabelecimentoId}
                     onChange={(e) =>

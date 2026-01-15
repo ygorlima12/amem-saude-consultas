@@ -1,6 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ApiService } from '@/services/api.service'
+import { Card } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
+import { Badge } from '@/components/ui/Badge'
+import { Modal } from '@/components/ui/Modal'
 import {
   Receipt,
   Search,
@@ -12,10 +16,10 @@ import {
   AlertCircle,
   User,
   FileText,
-  X
+  Download,
+  Calendar
 } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/utils/format'
-import { Link } from 'react-router-dom'
 
 export const AdminReembolsosPendentes = () => {
   const queryClient = useQueryClient()
@@ -23,11 +27,19 @@ export const AdminReembolsosPendentes = () => {
   const [selectedReembolso, setSelectedReembolso] = useState<any>(null)
   const [showDetalhesModal, setShowDetalhesModal] = useState(false)
   const [showModalAprovar, setShowModalAprovar] = useState(false)
-  const [showModalRejeitar, setShowModalRejeitar] = useState(false)
-  const [motivoRejeicao, setMotivoRejeicao] = useState('')
+  const [showModalReprovar, setShowModalReprovar] = useState(false)
+  const [showModalPagar, setShowModalPagar] = useState(false)
+  const [motivoReprovacao, setMotivoReprovacao] = useState('')
+  const [valorAprovado, setValorAprovado] = useState('')
+  const [observacoesPagamento, setObservacoesPagamento] = useState('')
+  
+  // Estados para validação de valor
+  const [erroValor, setErroValor] = useState('')
+  const [valorDigitadoConfirmado, setValorDigitadoConfirmado] = useState(false)
+  const [statusProcessamento, setStatusProcessamento] = useState('')
 
-  // Buscar apenas reembolsos pendentes
-  const { data: reembolsosPendentes, isLoading } = useQuery({
+  // Buscar reembolsos pendentes
+  const { data: reembolsos, isLoading } = useQuery({
     queryKey: ['reembolsos-pendentes', searchTerm],
     queryFn: async () => {
       const { data, error } = await ApiService.supabase
@@ -39,23 +51,21 @@ export const AdminReembolsosPendentes = () => {
             cpf,
             cidade,
             estado,
-            telefone,
             usuario:usuarios(id, nome, email, telefone)
-          )
+          ),
+          especialidade:especialidades(id, nome)
         `)
-        .eq('status', 'pendente')
-        .order('data_solicitacao', { ascending: false })
+        .in('status', ['pendente', 'em_analise'])
+        .order('data_solicitacao', { ascending: true })
 
       if (error) throw error
 
       let resultado = data || []
 
-      // Busca por texto
       if (searchTerm) {
         resultado = resultado.filter(r =>
           r.cliente?.usuario?.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          r.protocolo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          r.descricao?.toLowerCase().includes(searchTerm.toLowerCase())
+          r.cliente?.cpf?.includes(searchTerm)
         )
       }
 
@@ -63,88 +73,235 @@ export const AdminReembolsosPendentes = () => {
     },
   })
 
-  // Stats apenas dos pendentes
+  // Estatísticas
   const stats = {
-    total: reembolsosPendentes?.length || 0,
-    valorTotal: reembolsosPendentes?.reduce((sum, r) => sum + (r.valor_solicitado || 0), 0) || 0,
-    consultas: reembolsosPendentes?.filter(r => r.tipo === 'consulta').length || 0,
-    exames: reembolsosPendentes?.filter(r => r.tipo === 'exame').length || 0,
+    total: reembolsos?.length || 0,
+    valorTotal: reembolsos?.reduce((sum, r) => sum + (r.valor_estimado || 0), 0) || 0,
+    consultas: reembolsos?.filter(r => r.tipo === 'consulta').length || 0,
+    exames: reembolsos?.filter(r => r.tipo === 'exame').length || 0,
   }
 
-  // Mutation para aprovar reembolso
+  // Mutation para aprovar
   const aprovarMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const { data, error } = await ApiService.supabase
-        .from('reembolsos')
-        .update({
-          status: 'aprovado',
-          data_aprovacao: new Date().toISOString(),
-        })
-        .eq('id', id)
-        .select()
-        .single()
+    mutationFn: async ({ id, valor }: { id: number; valor: number }) => {
+      // 1. Aprovar no banco de dados
+      setStatusProcessamento('⏳ Aprovando reembolso no sistema...')
+      const reembolsoAprovado = await ApiService.aprovarReembolso(id, valor)
 
-      if (error) throw error
-      return data
+      // 2. Chamar webhook para processar pagamento
+      setStatusProcessamento('💳 Processando pagamento via PIX...')
+      try {
+        const webhookUrl = 'https://n8n.assorelseg.com.br/webhook/fazer-reembolso'
+        const webhookResponse = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            reembolsoId: id,
+            valor: valor,
+            chavePix: selectedReembolso.chave_pix,
+            tipoPix: selectedReembolso.tipo_pix,
+            clienteId: selectedReembolso.cliente_id,
+            clienteNome: selectedReembolso.cliente?.usuario?.nome,
+            clienteCPF: selectedReembolso.cliente?.cpf,
+            clienteEmail: selectedReembolso.cliente?.usuario?.email,
+            tipo: selectedReembolso.tipo,
+            dataAprovacao: new Date().toISOString(),
+          }),
+        })
+
+        if (!webhookResponse.ok) {
+          console.error('Erro ao chamar webhook:', await webhookResponse.text())
+          setStatusProcessamento('⚠️ Reembolso aprovado, mas houve erro ao processar pagamento')
+          throw new Error('Webhook retornou erro')
+        }
+
+        const webhookData = await webhookResponse.json()
+        console.log('✅ Webhook chamado com sucesso:', webhookData)
+        setStatusProcessamento('✅ Pagamento enviado com sucesso!')
+      } catch (webhookError) {
+        console.error('⚠️ Erro ao chamar webhook (reembolso já foi aprovado no banco):', webhookError)
+        setStatusProcessamento('⚠️ Reembolso aprovado. Verificar status do pagamento manualmente.')
+        // Não vamos bloquear a aprovação se o webhook falhar
+      }
+
+      return reembolsoAprovado
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reembolsos-pendentes'] })
-      setShowModalAprovar(false)
-      setShowDetalhesModal(false)
-      alert('Reembolso aprovado com sucesso!')
+      queryClient.invalidateQueries({ queryKey: ['reembolsos'] })
+      
+      // Aguardar 2 segundos para mostrar mensagem de sucesso
+      setTimeout(() => {
+        setShowModalAprovar(false)
+        setShowDetalhesModal(false)
+        setStatusProcessamento('')
+        alert('✅ Reembolso aprovado com sucesso! O pagamento foi enviado para processamento.')
+        limparFormularios()
+      }, 2000)
+    },
+    onError: (error) => {
+      console.error('Erro ao aprovar reembolso:', error)
+      setStatusProcessamento('')
+      alert('❌ Erro ao aprovar reembolso. Tente novamente.')
     },
   })
 
-  // Mutation para rejeitar reembolso
-  const rejeitarMutation = useMutation({
+  // Mutation para reprovar
+  const reprovarMutation = useMutation({
     mutationFn: async ({ id, motivo }: { id: number; motivo: string }) => {
-      const { data, error } = await ApiService.supabase
-        .from('reembolsos')
-        .update({
-          status: 'recusado',
-          motivo_rejeicao: motivo,
-          data_rejeicao: new Date().toISOString(),
-        })
-        .eq('id', id)
-        .select()
-        .single()
-
-      if (error) throw error
-      return data
+      return await ApiService.reprovarReembolso(id, motivo)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reembolsos-pendentes'] })
-      setShowModalRejeitar(false)
+      queryClient.invalidateQueries({ queryKey: ['reembolsos'] })
+      setShowModalReprovar(false)
       setShowDetalhesModal(false)
-      setMotivoRejeicao('')
-      alert('Reembolso rejeitado!')
+      alert('Reembolso reprovado!')
+      limparFormularios()
     },
   })
+
+  // Mutation para marcar como pago
+  const pagarMutation = useMutation({
+    mutationFn: async ({ id, obs }: { id: number; obs?: string }) => {
+      return await ApiService.marcarReembolsoPago(id, obs)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reembolsos-pendentes'] })
+      queryClient.invalidateQueries({ queryKey: ['reembolsos'] })
+      setShowModalPagar(false)
+      setShowDetalhesModal(false)
+      alert('Reembolso marcado como pago!')
+      limparFormularios()
+    },
+  })
+
+  const limparFormularios = () => {
+    setMotivoReprovacao('')
+    setValorAprovado('')
+    setObservacoesPagamento('')
+    setErroValor('')
+    setValorDigitadoConfirmado(false)
+  }
 
   const handleVerDetalhes = (reembolso: any) => {
     setSelectedReembolso(reembolso)
+    setValorAprovado('')
+    setErroValor('')
+    setValorDigitadoConfirmado(false)
     setShowDetalhesModal(true)
   }
 
   const handleAprovar = () => {
-    if (selectedReembolso) {
-      aprovarMutation.mutate(selectedReembolso.id)
+    // Validar se preencheu
+    if (!valorAprovado || valorAprovado.trim() === '') {
+      setErroValor('Por favor, digite o valor')
+      return
+    }
+
+    const valorDigitado = parseFloat(valorAprovado)
+    const valorEsperado = selectedReembolso?.valor_estimado || 0
+
+    // Validar se é um número válido
+    if (isNaN(valorDigitado) || valorDigitado <= 0) {
+      setErroValor('Digite um valor válido maior que zero')
+      return
+    }
+
+    // ✅ VALIDAÇÃO RIGOROSA: Valor deve ser EXATAMENTE igual ao estimado
+    // Arredonda para 2 casas decimais para evitar problemas de floating point
+    const valorDigitadoArredondado = Math.round(valorDigitado * 100) / 100
+    const valorEsperadoArredondado = Math.round(valorEsperado * 100) / 100
+
+    if (valorDigitadoArredondado !== valorEsperadoArredondado) {
+      setErroValor(
+        `O valor digitado (${formatCurrency(valorDigitado)}) não corresponde ao valor estimado (${formatCurrency(valorEsperado)}). Digite exatamente o valor mostrado acima.`
+      )
+      return
+    }
+
+    // ✅ Se chegou aqui, o valor está correto
+    setErroValor('')
+    aprovarMutation.mutate({
+      id: selectedReembolso.id,
+      valor: valorDigitado
+    })
+  }
+
+  // Handler para validação em tempo real
+  const handleValorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const novoValor = e.target.value
+    setValorAprovado(novoValor)
+    
+    setErroValor('')
+    
+    if (novoValor && !isNaN(parseFloat(novoValor))) {
+      const valorDigitado = Math.round(parseFloat(novoValor) * 100) / 100
+      const valorEsperado = Math.round((selectedReembolso?.valor_estimado || 0) * 100) / 100
+      
+      if (valorDigitado === valorEsperado) {
+        setValorDigitadoConfirmado(true)
+      } else {
+        setValorDigitadoConfirmado(false)
+      }
+    } else {
+      setValorDigitadoConfirmado(false)
     }
   }
 
-  const handleRejeitar = () => {
-    if (selectedReembolso && motivoRejeicao.trim()) {
-      rejeitarMutation.mutate({
-        id: selectedReembolso.id,
-        motivo: motivoRejeicao
-      })
+  const handleReprovar = () => {
+    if (!motivoReprovacao.trim()) {
+      alert('Informe o motivo da reprovação')
+      return
     }
+    reprovarMutation.mutate({
+      id: selectedReembolso.id,
+      motivo: motivoReprovacao
+    })
+  }
+
+  const handlePagar = () => {
+    if (selectedReembolso.status !== 'aprovado') {
+      alert('Apenas reembolsos aprovados podem ser marcados como pagos')
+      return
+    }
+    pagarMutation.mutate({
+      id: selectedReembolso.id,
+      obs: observacoesPagamento
+    })
+  }
+
+  const getTipoLabel = (tipo: string) => {
+    const labels: Record<string, string> = {
+      consulta: 'Consulta',
+      exame: 'Exame',
+      procedimento: 'Procedimento',
+      medicamento: 'Medicamento',
+    }
+    return labels[tipo] || tipo
+  }
+
+  const getStatusBadge = (status: string) => {
+    const config: Record<string, { label: string; variant: any }> = {
+      pendente: { label: 'Pendente', variant: 'warning' },
+      em_analise: { label: 'Em Análise', variant: 'info' },
+      aprovado: { label: 'Aprovado', variant: 'success' },
+      reprovado: { label: 'Reprovado', variant: 'danger' },
+      pago: { label: 'Pago', variant: 'success' },
+    }
+    const { label, variant } = config[status] || { label: status, variant: 'neutral' }
+    return <Badge variant={variant}>{label}</Badge>
   }
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Carregando reembolsos pendentes...</p>
+        </div>
       </div>
     )
   }
@@ -152,358 +309,579 @@ export const AdminReembolsosPendentes = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Reembolsos Pendentes</h1>
-        <p className="text-gray-600 mt-1">Solicitações aguardando análise e aprovação</p>
-      </div>
-
-      {/* Alerta de Pendentes */}
-      {stats.total > 0 && (
-        <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded-lg flex items-start gap-3">
-          <AlertCircle className="text-yellow-600 mt-0.5" size={20} />
-          <div>
-            <h4 className="font-semibold text-yellow-900 mb-1">Atenção!</h4>
-            <p className="text-sm text-yellow-800">
-              Você tem <strong>{stats.total} reembolsos pendentes</strong> aguardando análise no valor total de{' '}
-              <strong>{formatCurrency(stats.valorTotal)}</strong>.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-2xl p-6 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm text-gray-600 font-medium mb-1">Total Pendente</p>
-              <h3 className="text-2xl font-bold text-gray-900">{stats.total}</h3>
-            </div>
-            <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
-              <Clock size={24} className="text-yellow-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-6 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm text-gray-600 font-medium mb-1">Valor Total</p>
-              <h3 className="text-2xl font-bold text-gray-900">{formatCurrency(stats.valorTotal)}</h3>
-            </div>
-            <div className="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center">
-              <DollarSign size={24} className="text-primary-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-6 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm text-gray-600 font-medium mb-1">Consultas</p>
-              <h3 className="text-2xl font-bold text-gray-900">{stats.consultas}</h3>
-            </div>
-            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-              <User size={24} className="text-blue-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-6 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm text-gray-600 font-medium mb-1">Exames</p>
-              <h3 className="text-2xl font-bold text-gray-900">{stats.exames}</h3>
-            </div>
-            <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-              <FileText size={24} className="text-green-600" />
-            </div>
-          </div>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Reembolsos Pendentes</h1>
+          <p className="text-gray-600">Análise rápida de solicitações</p>
         </div>
       </div>
 
-      {/* Tabela de Reembolsos Pendentes */}
-      <div className="bg-white rounded-2xl shadow-sm">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">Reembolsos Aguardando Análise</h2>
-          <div className="flex gap-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-              <input
-                type="text"
-                placeholder="Buscar reembolso..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-warning/10 rounded-lg">
+              <Clock className="text-warning" size={24} />
             </div>
-            <Link
-              to="/admin/reembolsos"
-              className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium"
-            >
-              Ver Todos
-            </Link>
+            <div>
+              <p className="text-sm text-gray-600">Pendentes</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-blue-100 rounded-lg">
+              <DollarSign className="text-blue-600" size={24} />
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Valor Total</p>
+              <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats.valorTotal)}</p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-purple-100 rounded-lg">
+              <FileText className="text-purple-600" size={24} />
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Consultas</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.consultas}</p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-green-100 rounded-lg">
+              <Receipt className="text-green-600" size={24} />
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Exames</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.exames}</p>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Busca */}
+      <Card className="p-4">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <input
+              type="text"
+              placeholder="Buscar por nome ou CPF..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            />
           </div>
         </div>
+      </Card>
 
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50">
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Protocolo
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Cliente
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Tipo
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Especialidade
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Data Solicitação
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Valor
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
-                  Ações
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {reembolsosPendentes && reembolsosPendentes.length > 0 ? (
-                reembolsosPendentes.map((reembolso: any) => (
-                  <tr key={reembolso.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <p className="font-medium text-gray-900">
-                        {reembolso.protocolo || `#REMB-${String(reembolso.id).padStart(4, '0')}`}
-                      </p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="font-medium text-gray-900">{reembolso.cliente?.usuario?.nome || 'N/A'}</p>
-                        <p className="text-xs text-gray-500">{reembolso.cliente?.cpf || ''}</p>
+      {/* Lista */}
+      <div className="space-y-4">
+        {reembolsos && reembolsos.length > 0 ? (
+          reembolsos.map((reembolso: any) => (
+            <Card key={reembolso.id} className="p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-3">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      {getTipoLabel(reembolso.tipo)}
+                    </h3>
+                    {getStatusBadge(reembolso.status)}
+                    <span className="text-sm text-gray-500">#{reembolso.id}</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-600">
+                    <div className="flex items-center gap-2">
+                      <User size={16} />
+                      <span>{reembolso.cliente?.usuario?.nome || 'N/A'}</span>
+                    </div>
+
+                    {reembolso.especialidade && (
+                      <div className="flex items-center gap-2">
+                        <FileText size={16} />
+                        <span>{reembolso.especialidade.nome}</span>
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium capitalize">
-                        {reembolso.tipo || 'N/A'}
+                    )}
+
+                    <div className="flex items-center gap-2">
+                      <Calendar size={16} />
+                      <span>Solicitado: {formatDate(reembolso.data_solicitacao)}</span>
+                    </div>
+
+                    {reembolso.data_atendimento && (
+                      <div className="flex items-center gap-2">
+                        <Calendar size={16} />
+                        <span>Atendimento: {formatDate(reembolso.data_atendimento)}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {reembolso.chave_pix && (
+                    <div className="mt-2 text-sm">
+                      <span className="font-medium text-gray-700">PIX:</span>
+                      <span className="ml-2 text-gray-600">
+                        {reembolso.tipo_pix} - {reembolso.chave_pix}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {reembolso.especialidade || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {formatDate(reembolso.data_solicitacao)}
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="font-semibold text-gray-900">
-                        {formatCurrency(reembolso.valor_solicitado)}
-                      </p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleVerDetalhes(reembolso)}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
-                          title="Visualizar"
-                        >
-                          <Eye size={16} />
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedReembolso(reembolso)
-                            setShowModalAprovar(true)
-                          }}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
-                          title="Aprovar"
-                        >
-                          <CheckCircle size={16} />
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedReembolso(reembolso)
-                            setShowModalRejeitar(true)
-                          }}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-                          title="Rejeitar"
-                        >
-                          <XCircle size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center">
-                    <CheckCircle size={48} className="mx-auto text-gray-300 mb-3" />
-                    <p className="text-gray-500 font-medium mb-1">Nenhum reembolso pendente!</p>
-                    <p className="text-sm text-gray-400">Todas as solicitações foram processadas.</p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                    </div>
+                  )}
+                </div>
 
-      {/* Modal Detalhes */}
-      {showDetalhesModal && selectedReembolso && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">Detalhes do Reembolso</h2>
-              <button
-                onClick={() => setShowDetalhesModal(false)}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition"
-              >
-                <X size={20} />
-              </button>
-            </div>
+                <div className="flex flex-col items-end gap-3">
+                  <div className="text-right">
+                    <p className="text-sm text-gray-600">Valor estimado de reembolso</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {formatCurrency(reembolso.valor_estimado)}
+                    </p>
+                  </div>
 
-            <div className="p-6 space-y-6">
-              {/* Status Pendente */}
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-center gap-3">
-                <Clock className="text-yellow-600" size={24} />
-                <div>
-                  <p className="font-semibold text-yellow-900">Aguardando Análise</p>
-                  <p className="text-sm text-yellow-700">Este reembolso precisa ser aprovado ou rejeitado</p>
+                  <Button size="sm" onClick={() => handleVerDetalhes(reembolso)}>
+                    <Eye size={16} className="mr-1" />
+                    Analisar
+                  </Button>
                 </div>
               </div>
+            </Card>
+          ))
+        ) : (
+          <Card className="p-12 text-center">
+            <CheckCircle size={48} className="mx-auto mb-4 text-green-500" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Nenhum reembolso pendente
+            </h3>
+            <p className="text-gray-600">Todas as solicitações foram processadas!</p>
+          </Card>
+        )}
+      </div>
 
-              {/* Informações do Cliente */}
+      {/* Modal de Detalhes */}
+      <Modal
+        isOpen={showDetalhesModal}
+        onClose={() => setShowDetalhesModal(false)}
+        title="Detalhes do Reembolso"
+        size="lg"
+      >
+        {selectedReembolso && (
+          <div className="space-y-6">
+            {/* Status e ID */}
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
               <div>
-                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <User size={18} className="text-primary" />
-                  Cliente
-                </h3>
-                <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
-                  <p><strong>Nome:</strong> {selectedReembolso.cliente?.usuario?.nome}</p>
-                  <p><strong>CPF:</strong> {selectedReembolso.cliente?.cpf}</p>
-                  <p><strong>Email:</strong> {selectedReembolso.cliente?.usuario?.email}</p>
-                  <p><strong>Telefone:</strong> {selectedReembolso.cliente?.usuario?.telefone || 'Não informado'}</p>
-                  <p>
-                    <strong>Localização:</strong> {selectedReembolso.cliente?.cidade}/{selectedReembolso.cliente?.estado}
+                <p className="text-sm text-gray-600 mb-1">Status</p>
+                {getStatusBadge(selectedReembolso.status)}
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-gray-600 mb-1">ID</p>
+                <p className="font-mono text-sm font-semibold">#{selectedReembolso.id}</p>
+              </div>
+            </div>
+
+            {/* Cliente */}
+            <div className="border-t pt-4">
+              <h4 className="font-semibold text-gray-900 mb-3">Informações do Cliente</h4>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-gray-600">Nome</p>
+                  <p className="font-medium">{selectedReembolso.cliente?.usuario?.nome}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600">CPF</p>
+                  <p className="font-medium">{selectedReembolso.cliente?.cpf}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Email</p>
+                  <p className="font-medium">{selectedReembolso.cliente?.usuario?.email}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Telefone</p>
+                  <p className="font-medium">{selectedReembolso.cliente?.usuario?.telefone || 'N/A'}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Dados do Reembolso */}
+            <div className="border-t pt-4">
+              <h4 className="font-semibold text-gray-900 mb-3">Dados do Reembolso</h4>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-gray-600">Tipo</p>
+                  <p className="font-medium">{getTipoLabel(selectedReembolso.tipo)}</p>
+                </div>
+                {selectedReembolso.especialidade && (
+                  <div>
+                    <p className="text-gray-600">Especialidade</p>
+                    <p className="font-medium">{selectedReembolso.especialidade.nome}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-gray-600">Data Solicitação</p>
+                  <p className="font-medium">{formatDate(selectedReembolso.data_solicitacao)}</p>
+                </div>
+                {selectedReembolso.data_atendimento && (
+                  <div>
+                    <p className="text-gray-600">Data Atendimento</p>
+                    <p className="font-medium">{formatDate(selectedReembolso.data_atendimento)}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Valores */}
+            <div className="border-t pt-4">
+              <h4 className="font-semibold text-gray-900 mb-3">Valores</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-1">Valor {selectedReembolso.tipo === 'consulta' ? 'da' : 'do'}{' '} {getTipoLabel(selectedReembolso.tipo)}</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {formatCurrency(selectedReembolso.valor_total)}
+                  </p>
+                </div>
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-1">Valor estimado de reembolso</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {formatCurrency(selectedReembolso.valor_estimado)}
+                  </p>
+                </div>
+                {selectedReembolso.valor_aprovado && (
+                  <div className="bg-green-50 p-4 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-1">Valor Aprovado</p>
+                    <p className="text-2xl font-bold text-green-700">
+                      {formatCurrency(selectedReembolso.valor_aprovado)}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* PIX */}
+            {selectedReembolso.chave_pix && (
+              <div className="border-t pt-4">
+                <h4 className="font-semibold text-gray-900 mb-3">Dados PIX</h4>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-600">Tipo: {selectedReembolso.tipo_pix}</p>
+                  <p className="font-mono text-lg font-semibold text-gray-900 mt-1">
+                    {selectedReembolso.chave_pix}
                   </p>
                 </div>
               </div>
+            )}
 
-              {/* Informações do Reembolso */}
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <Receipt size={18} className="text-primary" />
-                  Dados do Reembolso
-                </h3>
-                <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
-                  <p><strong>Protocolo:</strong> {selectedReembolso.protocolo || `#REMB-${String(selectedReembolso.id).padStart(4, '0')}`}</p>
-                  <p><strong>Tipo:</strong> <span className="capitalize">{selectedReembolso.tipo}</span></p>
-                  <p><strong>Especialidade:</strong> {selectedReembolso.especialidade || 'N/A'}</p>
-                  <p><strong>Data da Solicitação:</strong> {formatDate(selectedReembolso.data_solicitacao)}</p>
-                  <p><strong>Valor Solicitado:</strong> {formatCurrency(selectedReembolso.valor_solicitado)}</p>
-                  {selectedReembolso.descricao && (
-                    <p><strong>Descrição:</strong> {selectedReembolso.descricao}</p>
+            {/* Documentos */}
+            {(selectedReembolso.url_nota_fiscal || selectedReembolso.url_receita || selectedReembolso.url_relatorio) && (
+              <div className="border-t pt-4">
+                <h4 className="font-semibold text-gray-900 mb-3">Documentos</h4>
+                <div className="space-y-2">
+                  {selectedReembolso.url_nota_fiscal && (
+                    <a
+                      href={selectedReembolso.url_nota_fiscal}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-primary hover:underline"
+                    >
+                      <Download size={16} />
+                      <span>Nota Fiscal</span>
+                    </a>
+                  )}
+                  {selectedReembolso.url_receita && (
+                    <a
+                      href={selectedReembolso.url_receita}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-primary hover:underline"
+                    >
+                      <Download size={16} />
+                      <span>Receita/Pedido Médico</span>
+                    </a>
+                  )}
+                  {selectedReembolso.url_relatorio && (
+                    <a
+                      href={selectedReembolso.url_relatorio}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-primary hover:underline"
+                    >
+                      <Download size={16} />
+                      <span>Documento Titular</span>
+                    </a>
                   )}
                 </div>
               </div>
+            )}
 
-              {/* Ações */}
-              <div className="flex gap-3 pt-4 border-t">
-                <button
-                  onClick={() => {
-                    setShowDetalhesModal(false)
-                    setShowModalAprovar(true)
-                  }}
-                  className="flex-1 px-4 py-3 bg-primary text-white rounded-lg hover:bg-primary-600 transition font-medium flex items-center justify-center gap-2"
+            {/* Observações */}
+            {selectedReembolso.observacoes && (
+              <div className="border-t pt-4">
+                <h4 className="font-semibold text-gray-900 mb-2">Observações</h4>
+                <p className="text-gray-700 bg-gray-50 p-3 rounded-lg">
+                  {selectedReembolso.observacoes}
+                </p>
+              </div>
+            )}
+
+            {/* Ações */}
+            {selectedReembolso.status === 'pendente' || selectedReembolso.status === 'em_analise' ? (
+              <div className="flex gap-3 border-t pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowModalReprovar(true)}
+                  fullWidth
                 >
-                  <CheckCircle size={18} />
-                  Aprovar Reembolso
-                </button>
-                <button
-                  onClick={() => {
-                    setShowDetalhesModal(false)
-                    setShowModalRejeitar(true)
-                  }}
-                  className="flex-1 px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition font-medium flex items-center justify-center gap-2"
+                  <XCircle size={16} className="mr-1" />
+                  Reprovar
+                </Button>
+                <Button
+                  onClick={() => setShowModalAprovar(true)}
+                  fullWidth
                 >
-                  <XCircle size={18} />
-                  Rejeitar
-                </button>
+                  <CheckCircle size={16} className="mr-1" />
+                  Aprovar
+                </Button>
+              </div>
+            ) : selectedReembolso.status === 'aprovado' ? (
+              <div className="flex gap-3 border-t pt-4">
+                <Button
+                  onClick={() => setShowModalPagar(true)}
+                  fullWidth
+                >
+                  <DollarSign size={16} className="mr-1" />
+                  Marcar como Pago
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal Aprovar */}
+      <Modal
+        isOpen={showModalAprovar}
+        onClose={() => {
+          setShowModalAprovar(false)
+          setErroValor('')
+          setValorAprovado('')
+          setValorDigitadoConfirmado(false)
+        }}
+        title="Aprovar Reembolso"
+        size="md"
+      >
+        <div className="space-y-4">
+          {/* Aviso importante */}
+          <div className="bg-red-50 border-l-4 border-red-500 rounded-lg p-4">
+            <p className="text-sm text-red-800">
+              <strong>⚠️ ATENÇÃO:</strong> Para aprovar, você deve digitar{' '}
+              <strong className="text-md">EXATAMENTE</strong> o valor estimado: <strong>{formatCurrency(selectedReembolso?.valor_estimado || 0)}</strong>
+            </p>
+            <p className="text-xs text-red-700 mt-2">
+              <strong>Importante:</strong> Ao confirmar, o pagamento será processado imediatamente.
+            </p>
+          </div>
+
+          {/* Input de valor */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Digite o valor exato mostrado acima: *
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              value={valorAprovado}
+              onChange={handleValorChange}
+              className={`w-full px-4 py-3 border-2 rounded-lg transition-all ${
+                erroValor
+                  ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                  : valorDigitadoConfirmado
+                  ? 'border-green-500 focus:border-green-500 focus:ring-green-500'
+                  : 'border-gray-300 focus:border-primary focus:ring-primary'
+              }`}
+              placeholder="0,00"
+              autoFocus
+            />
+            
+            {/* Feedback visual */}
+            {valorDigitadoConfirmado && !erroValor && (
+              <div className="flex items-center gap-2 mt-2 text-green-600">
+                <CheckCircle size={16} />
+                <span className="text-sm font-medium">✓ Valor correto!</span>
+              </div>
+            )}
+
+            {/* Mensagem de erro */}
+            {erroValor && (
+              <div className="flex items-start gap-2 mt-2 text-red-600">
+                <XCircle size={16} className="mt-0.5 flex-shrink-0" />
+                <span className="text-sm">{erroValor}</span>
+              </div>
+            )}
+
+            {/* Dica */}
+            {!valorDigitadoConfirmado && !erroValor && valorAprovado && (
+              <p className="text-xs text-gray-500 mt-2">
+                Continue digitando... O valor deve ser exatamente {formatCurrency(selectedReembolso?.valor_estimado || 0)}
+              </p>
+            )}
+          </div>
+
+          {/* Resumo do reembolso */}
+          <div className="border-t pt-4">
+            <h4 className="text-sm font-semibold text-gray-700 mb-2">Resumo:</h4>
+            <div className="bg-gray-50 p-3 rounded-lg space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Tipo:</span>
+                <span className="font-medium">{getTipoLabel(selectedReembolso?.tipo)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Cliente:</span>
+                <span className="font-medium">{selectedReembolso?.cliente?.usuario?.nome}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">PIX ({selectedReembolso?.tipo_pix}):</span>
+                <span className="font-mono text-xs">{selectedReembolso?.chave_pix}</span>
               </div>
             </div>
           </div>
-        </div>
-      )}
 
-      {/* Modal Aprovar */}
-      {showModalAprovar && selectedReembolso && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Confirmar Aprovação</h2>
-            <p className="text-gray-700 mb-6">
-              Deseja realmente aprovar este reembolso no valor de{' '}
-              <strong>{formatCurrency(selectedReembolso.valor_solicitado)}</strong>?
+          {/* Botões */}
+          <div className="flex gap-3 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowModalAprovar(false)
+                setErroValor('')
+                setValorAprovado('')
+                setValorDigitadoConfirmado(false)
+                setStatusProcessamento('')
+              }}
+              fullWidth
+              disabled={aprovarMutation.isPending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleAprovar}
+              isLoading={aprovarMutation.isPending}
+              disabled={!valorDigitadoConfirmado || aprovarMutation.isPending}
+              fullWidth
+              className={`${
+                valorDigitadoConfirmado && !aprovarMutation.isPending
+                  ? 'bg-green-600 hover:bg-green-700'
+                  : ''
+              }`}
+            >
+              {valorDigitadoConfirmado ? '✓ Confirmar Aprovação' : 'Digite o valor correto'}
+            </Button>
+          </div>
+
+          {/* Status de Processamento */}
+          {aprovarMutation.isPending && statusProcessamento && (
+            <div className="mt-4 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-600 border-t-transparent"></div>
+                <p className="text-sm font-medium text-blue-800">{statusProcessamento}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Modal Reprovar */}
+      <Modal
+        isOpen={showModalReprovar}
+        onClose={() => setShowModalReprovar(false)}
+        title="Reprovar Reembolso"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-sm text-red-800">
+              <strong>Atenção:</strong> Esta ação irá reprovar o reembolso e notificar o cliente.
             </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowModalAprovar(false)}
-                className="flex-1 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleAprovar}
-                disabled={aprovarMutation.isPending}
-                className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-600 transition font-medium disabled:opacity-50"
-              >
-                {aprovarMutation.isPending ? 'Aprovando...' : 'Confirmar Aprovação'}
-              </button>
-            </div>
           </div>
-        </div>
-      )}
 
-      {/* Modal Rejeitar */}
-      {showModalRejeitar && selectedReembolso && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Rejeitar Reembolso</h2>
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Motivo da Rejeição *
-              </label>
-              <textarea
-                value={motivoRejeicao}
-                onChange={(e) => setMotivoRejeicao(e.target.value)}
-                rows={4}
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
-                placeholder="Explique o motivo da rejeição..."
-              />
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowModalRejeitar(false)
-                  setMotivoRejeicao('')
-                }}
-                className="flex-1 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleRejeitar}
-                disabled={!motivoRejeicao.trim() || rejeitarMutation.isPending}
-                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition font-medium disabled:opacity-50"
-              >
-                {rejeitarMutation.isPending ? 'Rejeitando...' : 'Confirmar Rejeição'}
-              </button>
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Motivo da Reprovação *
+            </label>
+            <textarea
+              rows={4}
+              value={motivoReprovacao}
+              onChange={(e) => setMotivoReprovacao(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+              placeholder="Descreva o motivo da reprovação..."
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setShowModalReprovar(false)} fullWidth>
+              Cancelar
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleReprovar}
+              isLoading={reprovarMutation.isPending}
+              fullWidth
+            >
+              Confirmar Reprovação
+            </Button>
           </div>
         </div>
-      )}
+      </Modal>
+
+      {/* Modal Pagar */}
+      <Modal
+        isOpen={showModalPagar}
+        onClose={() => setShowModalPagar(false)}
+        title="Marcar como Pago"
+        size="md"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-700">
+            Confirme que o pagamento foi efetuado para este reembolso:
+          </p>
+
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <p className="text-sm text-green-800">
+              <strong>Valor aprovado:</strong> {formatCurrency(selectedReembolso?.valor_aprovado || 0)}
+            </p>
+            {selectedReembolso?.chave_pix && (
+              <p className="text-sm text-green-800 mt-1">
+                <strong>PIX:</strong> {selectedReembolso.tipo_pix} - {selectedReembolso.chave_pix}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Observações (opcional)
+            </label>
+            <textarea
+              rows={3}
+              value={observacoesPagamento}
+              onChange={(e) => setObservacoesPagamento(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+              placeholder="Comprovante de pagamento, data, etc..."
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setShowModalPagar(false)} fullWidth>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handlePagar}
+              isLoading={pagarMutation.isPending}
+              fullWidth
+            >
+              Confirmar Pagamento
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

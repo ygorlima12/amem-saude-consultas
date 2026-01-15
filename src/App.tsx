@@ -2,6 +2,8 @@ import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAuth, useAuthListener } from './hooks/useAuth'
+import { useInitializeAuth } from '@/hooks/useAuth'
+
 
 // Páginas Cliente
 import { LoginPage } from './pages/auth/LoginPage'
@@ -15,6 +17,7 @@ import { ClienteCancelar } from './pages/cliente/ClienteCancelar'
 import { ClientePagamentos } from './pages/cliente/ClientePagamentos'
 import { ClienteGuias } from './pages/cliente/ClienteGuias'
 import { ClienteReembolsos } from './pages/cliente/ClienteReembolsos'
+import { ClienteReembolsosHistorico } from './pages/cliente/ClienteGeralReembolsos'
 import { ClienteIndicacao } from './pages/cliente/ClienteIndicacao'
 import { ClienteAjuda } from './pages/cliente/ClienteAjuda'
 import { ClientePerfil } from './pages/cliente/ClientePerfil'
@@ -79,9 +82,8 @@ function AppRoutes() {
         <Route path="cancelar" element={<ClienteCancelar />} />
         <Route path="pagamentos" element={<ClientePagamentos />} />
         <Route path="guias" element={<ClienteGuias />} />
-        <Route path="reembolsos" element={<ClienteReembolsos />} />
-        <Route path="reembolso-consulta" element={<ClienteReembolsos />} />
-        <Route path="reembolso-exames" element={<ClienteReembolsos />} />
+        <Route path="reembolsos" element={<ClienteReembolsosHistorico />} />
+        <Route path="reembolsos/solicitar" element={<ClienteReembolsos />} />
         <Route path="indicacao" element={<ClienteIndicacao />} />
         <Route path="ajuda" element={<ClienteAjuda />} />
         <Route path="perfil" element={<ClientePerfil />} />
@@ -114,9 +116,12 @@ function AppRoutes() {
   )
 }
 
+
+
 export default function App() {
   const { initialize } = useAuth()
   const { setupAuthListener } = useAuthListener()
+  
 
   useEffect(() => {
     initialize()

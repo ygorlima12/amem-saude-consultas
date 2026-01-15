@@ -33,6 +33,7 @@ export const useAuth = create<AuthStore>()(
 
           if (session?.user) {
             const userData = await AuthService.getUserData(session.user.id)
+            console.log('✅ Autenticação inicializada:', userData)
             set({
               user: userData.usuario,
               cliente: userData.cliente,
@@ -54,7 +55,7 @@ export const useAuth = create<AuthStore>()(
           const result = await AuthService.login({ email, password })
 
           set({
-            user: result.usuario,
+            user: result.user as any,
             cliente: result.cliente,
             isAuthenticated: true,
             loading: false,
@@ -113,6 +114,15 @@ export const useAuth = create<AuthStore>()(
     }
   )
 )
+
+// Hook para usar no App.tsx
+export const useInitializeAuth = () => {
+  const initialize = useAuth((state) => state.initialize)
+
+  useEffect(() => {
+    initialize()
+  }, [initialize])
+}
 
 // Hook para escutar mudanças de autenticação
 export const useAuthListener = () => {

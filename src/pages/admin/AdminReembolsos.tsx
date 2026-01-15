@@ -1,6 +1,10 @@
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiService } from '@/services/api.service'
+import { Card } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
+import { Badge } from '@/components/ui/Badge'
+import { Modal } from '@/components/ui/Modal'
 import {
   Receipt,
   Search,
@@ -14,9 +18,7 @@ import {
   TrendingUp,
   Filter,
   X,
-  AlertCircle,
   Calendar,
-  MapPin,
   User
 } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/utils/format'
@@ -27,25 +29,19 @@ export const AdminReembolsos = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedReembolso, setSelectedReembolso] = useState<any>(null)
   const [showDetalhesModal, setShowDetalhesModal] = useState(false)
-  const [showModalAprovar, setShowModalAprovar] = useState(false)
-  const [showModalRejeitar, setShowModalRejeitar] = useState(false)
-  const [motivoRejeicao, setMotivoRejeicao] = useState('')
+  const [showFiltros, setShowFiltros] = useState(false)
 
   // Filtros
   const [filtros, setFiltros] = useState({
     status: 'todos',
     tipo: 'todos',
-    especialidade: 'todas',
-    cidade: 'todas',
-    estado: 'todos',
     dataInicio: '',
     dataFim: '',
-    periodoRapido: 'mensal'
   })
 
   // Buscar todos os reembolsos
-  const { data: reembolsos, isLoading } = useQuery({
-    queryKey: ['reembolsos', searchTerm, filtros],
+  const { data: reembolsosData, isLoading } = useQuery({
+    queryKey: ['admin-reembolsos', searchTerm, filtros],
     queryFn: async () => {
       const { data, error } = await ApiService.supabase
         .from('reembolsos')
@@ -57,7 +53,8 @@ export const AdminReembolsos = () => {
             cidade,
             estado,
             usuario:usuarios(id, nome, email, telefone)
-          )
+          ),
+          especialidade:especialidades(id, nome)
         `)
         .order('data_solicitacao', { ascending: false })
 
@@ -65,7 +62,7 @@ export const AdminReembolsos = () => {
 
       let resultado = data || []
 
-      // Aplicar filtros
+      // Filtros
       if (filtros.status !== 'todos') {
         resultado = resultado.filter(r => r.status === filtros.status)
       }
@@ -74,26 +71,14 @@ export const AdminReembolsos = () => {
         resultado = resultado.filter(r => r.tipo === filtros.tipo)
       }
 
-      if (filtros.especialidade !== 'todas') {
-        resultado = resultado.filter(r => r.especialidade === filtros.especialidade)
-      }
-
-      if (filtros.cidade !== 'todas') {
-        resultado = resultado.filter(r => r.cliente?.cidade === filtros.cidade)
-      }
-
-      if (filtros.estado !== 'todos') {
-        resultado = resultado.filter(r => r.cliente?.estado === filtros.estado)
-      }
-
       if (filtros.dataInicio) {
-        resultado = resultado.filter(r => 
+        resultado = resultado.filter(r =>
           new Date(r.data_solicitacao) >= new Date(filtros.dataInicio)
         )
       }
 
       if (filtros.dataFim) {
-        resultado = resultado.filter(r => 
+        resultado = resultado.filter(r =>
           new Date(r.data_solicitacao) <= new Date(filtros.dataFim)
         )
       }
@@ -102,8 +87,8 @@ export const AdminReembolsos = () => {
       if (searchTerm) {
         resultado = resultado.filter(r =>
           r.cliente?.usuario?.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          r.protocolo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          r.descricao?.toLowerCase().includes(searchTerm.toLowerCase())
+          r.cliente?.cpf?.includes(searchTerm) ||
+          r.id.toString().includes(searchTerm)
         )
       }
 
@@ -111,136 +96,104 @@ export const AdminReembolsos = () => {
     },
   })
 
-  // Stats
-  const totalReembolsado = reembolsos
-    ?.filter(r => r.status === 'aprovado')
-    .reduce((sum, r) => sum + (r.valor_solicitado || 0), 0) || 0
+  const reembolsos = reembolsosData || []
 
-  const consultas = reembolsos
-    ?.filter(r => r.tipo === 'consulta' && r.status === 'aprovado')
-    .reduce((sum, r) => sum + (r.valor_solicitado || 0), 0) || 0
-
-  const exames = reembolsos
-    ?.filter(r => r.tipo === 'exame' && r.status === 'aprovado')
-    .reduce((sum, r) => sum + (r.valor_solicitado || 0), 0) || 0
-
-  const ticketMedio = reembolsos && reembolsos.length > 0
-    ? totalReembolsado / reembolsos.filter(r => r.status === 'aprovado').length
-    : 0
-
+  // Estatísticas
   const stats = {
-    totalReembolsado,
-    consultas,
-    exames,
-    ticketMedio,
-    pendentes: reembolsos?.filter(r => r.status === 'pendente').length || 0,
-    aprovados: reembolsos?.filter(r => r.status === 'aprovado').length || 0,
-    recusados: reembolsos?.filter(r => r.status === 'recusado').length || 0,
+    total: reembolsos.length,
+    pendentes: reembolsos.filter(r => r.status === 'pendente' || r.status === 'em_analise').length,
+    aprovados: reembolsos.filter(r => r.status === 'aprovado').length,
+    pagos: reembolsos.filter(r => r.status === 'pago').length,
+    reprovados: reembolsos.filter(r => r.status === 'reprovado').length,
+    valorTotal: reembolsos.reduce((sum, r) => sum + (r.valor_total || 0), 0),
+    valorAprovado: reembolsos
+      .filter(r => r.status === 'aprovado' || r.status === 'pago')
+      .reduce((sum, r) => sum + (r.valor_aprovado || 0), 0),
+    valorPago: reembolsos
+      .filter(r => r.status === 'pago')
+      .reduce((sum, r) => sum + (r.valor_aprovado || 0), 0),
   }
 
-  // Mutation para aprovar reembolso
-  const aprovarMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const { data, error } = await ApiService.supabase
-        .from('reembolsos')
-        .update({
-          status: 'aprovado',
-          data_aprovacao: new Date().toISOString(),
-        })
-        .eq('id', id)
-        .select()
-        .single()
-
-      if (error) throw error
-      return data
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['reembolsos'] })
-      setShowModalAprovar(false)
-      setShowDetalhesModal(false)
-      alert('Reembolso aprovado com sucesso!')
-    },
-  })
-
-  // Mutation para rejeitar reembolso
-  const rejeitarMutation = useMutation({
-    mutationFn: async ({ id, motivo }: { id: number; motivo: string }) => {
-      const { data, error } = await ApiService.supabase
-        .from('reembolsos')
-        .update({
-          status: 'recusado',
-          motivo_rejeicao: motivo,
-          data_rejeicao: new Date().toISOString(),
-        })
-        .eq('id', id)
-        .select()
-        .single()
-
-      if (error) throw error
-      return data
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['reembolsos'] })
-      setShowModalRejeitar(false)
-      setShowDetalhesModal(false)
-      setMotivoRejeicao('')
-      alert('Reembolso rejeitado!')
-    },
-  })
-
-  const handleVerDetalhes = (reembolso: any) => {
-    setSelectedReembolso(reembolso)
-    setShowDetalhesModal(true)
-  }
-
-  const handleAprovar = () => {
-    if (selectedReembolso) {
-      aprovarMutation.mutate(selectedReembolso.id)
+  const getTipoLabel = (tipo: string) => {
+    const labels: Record<string, string> = {
+      consulta: 'Consulta',
+      exame: 'Exame',
+      procedimento: 'Procedimento',
+      medicamento: 'Medicamento',
     }
-  }
-
-  const handleRejeitar = () => {
-    if (selectedReembolso && motivoRejeicao.trim()) {
-      rejeitarMutation.mutate({
-        id: selectedReembolso.id,
-        motivo: motivoRejeicao
-      })
-    }
+    return labels[tipo] || tipo
   }
 
   const getStatusBadge = (status: string) => {
-    const badges: Record<string, { text: string; color: string; icon: any }> = {
-      pendente: { text: 'Pendente', color: 'bg-yellow-100 text-yellow-700', icon: <Clock size={14} /> },
-      aprovado: { text: 'Aprovado', color: 'bg-green-100 text-green-700', icon: <CheckCircle size={14} /> },
-      recusado: { text: 'Recusado', color: 'bg-red-100 text-red-700', icon: <XCircle size={14} /> },
+    const config: Record<string, { label: string; variant: any }> = {
+      pendente: { label: 'Pendente', variant: 'warning' },
+      em_analise: { label: 'Em Análise', variant: 'info' },
+      aprovado: { label: 'Aprovado', variant: 'success' },
+      reprovado: { label: 'Reprovado', variant: 'danger' },
+      pago: { label: 'Pago', variant: 'success' },
+      cancelado: { label: 'Cancelado', variant: 'neutral' },
     }
-    const badge = badges[status] || badges.pendente
-    return (
-      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${badge.color}`}>
-        {badge.icon}
-        {badge.text}
-      </span>
-    )
+    const { label, variant } = config[status] || { label: status, variant: 'neutral' }
+    return <Badge variant={variant}>{label}</Badge>
   }
 
   const limparFiltros = () => {
     setFiltros({
       status: 'todos',
       tipo: 'todos',
-      especialidade: 'todas',
-      cidade: 'todas',
-      estado: 'todos',
       dataInicio: '',
       dataFim: '',
-      periodoRapido: 'mensal'
     })
-    setSearchTerm('')
+  }
+
+  const exportarCSV = () => {
+    if (!reembolsos || reembolsos.length === 0) {
+      alert('Nenhum dado para exportar')
+      return
+    }
+
+    const headers = [
+      'ID',
+      'Cliente',
+      'CPF',
+      'Tipo',
+      'Status',
+      'Valor Solicitado',
+      'Valor Estimado de Reembolso',
+      'Valor Aprovado',
+      'Data Solicitação',
+      'Data Aprovação',
+      'PIX',
+    ]
+
+    const rows = reembolsos.map(r => [
+      r.id,
+      r.cliente?.usuario?.nome || '',
+      r.cliente?.cpf || '',
+      getTipoLabel(r.tipo),
+      r.status,
+      r.valor_total || 0,
+      r.valor_aprovado || 0,
+      formatDate(r.data_solicitacao),
+      r.data_aprovacao ? formatDate(r.data_aprovacao) : '',
+      r.chave_pix || '',
+    ])
+
+    const csv = [headers, ...rows].map(row => row.join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `reembolsos_${new Date().toISOString().split('T')[0]}.csv`
+    link.click()
   }
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Carregando reembolsos...</p>
+        </div>
       </div>
     )
   }
@@ -248,407 +201,348 @@ export const AdminReembolsos = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Reembolsos</h1>
-        <p className="text-gray-600 mt-1">Gerencie solicitações de reembolso</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Gestão de Reembolsos</h1>
+          <p className="text-gray-600">Visualização completa e relatórios</p>
+        </div>
+        <div className="flex gap-2">
+          <Link to="/admin/reembolsos-pendentes">
+            <Button variant="outline">
+              <Clock size={16} className="mr-1" />
+              Pendentes
+            </Button>
+          </Link>
+          <Button variant="outline" onClick={exportarCSV}>
+            <Download size={16} className="mr-1" />
+            Exportar CSV
+          </Button>
+        </div>
       </div>
 
-      {/* Filtros Avançados */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm">
-        <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-          <Filter size={20} className="text-primary" />
-          Filtros de Reembolsos
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Período Rápido</label>
-            <select
-              value={filtros.periodoRapido}
-              onChange={(e) => setFiltros({ ...filtros, periodoRapido: e.target.value })}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-            >
-              <option value="hoje">Hoje</option>
-              <option value="mensal">Mensal</option>
-              <option value="personalizado">Personalizado</option>
-            </select>
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+        <Card className="p-4">
+          <div className="text-center">
+            <FileText size={24} className="mx-auto mb-2 text-primary" />
+            <p className="text-sm text-gray-600">Total</p>
+            <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
           </div>
+        </Card>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Data Início</label>
+        <Card className="p-4">
+          <div className="text-center">
+            <Clock size={24} className="mx-auto mb-2 text-warning" />
+            <p className="text-sm text-gray-600">Pendentes</p>
+            <p className="text-2xl font-bold text-gray-900">{stats.pendentes}</p>
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <div className="text-center">
+            <CheckCircle size={24} className="mx-auto mb-2 text-success" />
+            <p className="text-sm text-gray-600">Aprovados</p>
+            <p className="text-2xl font-bold text-gray-900">{stats.aprovados}</p>
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <div className="text-center">
+            <DollarSign size={24} className="mx-auto mb-2 text-green-600" />
+            <p className="text-sm text-gray-600">Pagos</p>
+            <p className="text-2xl font-bold text-gray-900">{stats.pagos}</p>
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <div className="text-center">
+            <XCircle size={24} className="mx-auto mb-2 text-danger" />
+            <p className="text-sm text-gray-600">Reprovados</p>
+            <p className="text-2xl font-bold text-gray-900">{stats.reprovados}</p>
+          </div>
+        </Card>
+
+        <Card className="p-4 col-span-1 md:col-span-2 lg:col-span-1">
+          <div className="text-center">
+            <TrendingUp size={24} className="mx-auto mb-2 text-blue-600" />
+            <p className="text-sm text-gray-600">Total Solicitado</p>
+            <p className="text-xl font-bold text-gray-900">{formatCurrency(stats.valorTotal)}</p>
+          </div>
+        </Card>
+
+        <Card className="p-4 col-span-1 md:col-span-2 lg:col-span-1">
+          <div className="text-center">
+            <DollarSign size={24} className="mx-auto mb-2 text-green-600" />
+            <p className="text-sm text-gray-600">Total Aprovado</p>
+            <p className="text-xl font-bold text-green-700">{formatCurrency(stats.valorAprovado)}</p>
+          </div>
+        </Card>
+
+        <Card className="p-4 col-span-1 md:col-span-2 lg:col-span-1">
+          <div className="text-center">
+            <Receipt size={24} className="mx-auto mb-2 text-purple-600" />
+            <p className="text-sm text-gray-600">Total Pago</p>
+            <p className="text-xl font-bold text-purple-700">{formatCurrency(stats.valorPago)}</p>
+          </div>
+        </Card>
+      </div>
+
+      {/* Busca e Filtros */}
+      <Card className="p-4">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
             <input
-              type="date"
-              value={filtros.dataInicio}
-              onChange={(e) => setFiltros({ ...filtros, dataInicio: e.target.value })}
-              disabled={filtros.periodoRapido !== 'personalizado'}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:bg-gray-100"
+              type="text"
+              placeholder="Buscar por nome, CPF ou ID..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Data Fim</label>
-            <input
-              type="date"
-              value={filtros.dataFim}
-              onChange={(e) => setFiltros({ ...filtros, dataFim: e.target.value })}
-              disabled={filtros.periodoRapido !== 'personalizado'}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:bg-gray-100"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Tipo</label>
-            <select
-              value={filtros.tipo}
-              onChange={(e) => setFiltros({ ...filtros, tipo: e.target.value })}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-            >
-              <option value="todos">Todos</option>
-              <option value="consulta">Consultas</option>
-              <option value="exame">Exames</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Especialidade</label>
-            <select
-              value={filtros.especialidade}
-              onChange={(e) => setFiltros({ ...filtros, especialidade: e.target.value })}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-            >
-              <option value="todas">Todas</option>
-              <option value="Cardiologia">Cardiologia</option>
-              <option value="Ortopedia">Ortopedia</option>
-              <option value="Dermatologia">Dermatologia</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Cidade</label>
-            <select
-              value={filtros.cidade}
-              onChange={(e) => setFiltros({ ...filtros, cidade: e.target.value })}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-            >
-              <option value="todas">Todas</option>
-              <option value="São Paulo">São Paulo</option>
-              <option value="Rio de Janeiro">Rio de Janeiro</option>
-              <option value="Belo Horizonte">Belo Horizonte</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Estado</label>
-            <select
-              value={filtros.estado}
-              onChange={(e) => setFiltros({ ...filtros, estado: e.target.value })}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-            >
-              <option value="todos">Todos</option>
-              <option value="SP">SP</option>
-              <option value="RJ">RJ</option>
-              <option value="MG">MG</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-            <select
-              value={filtros.status}
-              onChange={(e) => setFiltros({ ...filtros, status: e.target.value })}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-            >
-              <option value="todos">Todos</option>
-              <option value="pendente">Pendente</option>
-              <option value="aprovado">Aprovado</option>
-              <option value="recusado">Rejeitado</option>
-            </select>
-          </div>
+          <Button variant="outline" onClick={() => setShowFiltros(!showFiltros)}>
+            <Filter size={16} className="mr-1" />
+            Filtros
+            {(filtros.status !== 'todos' || filtros.tipo !== 'todos' || filtros.dataInicio || filtros.dataFim) && (
+              <span className="ml-2 px-2 py-0.5 bg-primary text-white text-xs rounded-full">
+                Ativos
+              </span>
+            )}
+          </Button>
         </div>
 
-        <div className="flex gap-3 mt-4">
-          <button
-            onClick={limparFiltros}
-            className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium flex items-center gap-2"
-          >
-            <X size={18} />
-            Limpar Filtros
-          </button>
-        </div>
-      </div>
+        {/* Painel de Filtros */}
+        {showFiltros && (
+          <div className="mt-4 p-4 bg-gray-50 rounded-lg space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                <select
+                  value={filtros.status}
+                  onChange={(e) => setFiltros({ ...filtros, status: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                >
+                  <option value="todos">Todos</option>
+                  <option value="pendente">Pendente</option>
+                  <option value="em_analise">Em Análise</option>
+                  <option value="aprovado">Aprovado</option>
+                  <option value="reprovado">Reprovado</option>
+                  <option value="pago">Pago</option>
+                  <option value="cancelado">Cancelado</option>
+                </select>
+              </div>
 
-      {/* Análise de Reembolsos */}
-      <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg">
-        <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
-          <AlertCircle size={18} />
-          Análise de Reembolsos
-        </h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-sm text-blue-800">
-          <p><strong>Menor Valor (Consulta):</strong> R$ 120,00</p>
-          <p><strong>Maior Valor (Consulta):</strong> R$ 850,00</p>
-          <p><strong>Menor Valor (Exame):</strong> R$ 45,00</p>
-          <p><strong>Maior Valor (Exame):</strong> R$ 420,00</p>
-        </div>
-      </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Tipo</label>
+                <select
+                  value={filtros.tipo}
+                  onChange={(e) => setFiltros({ ...filtros, tipo: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                >
+                  <option value="todos">Todos</option>
+                  <option value="consulta">Consulta</option>
+                  <option value="exame">Exame</option>
+                  <option value="procedimento">Procedimento</option>
+                  <option value="medicamento">Medicamento</option>
+                </select>
+              </div>
 
-      {/* Tabela de Reembolsos */}
-      <div className="bg-white rounded-2xl shadow-sm">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">Solicitações de Reembolso</h2>
-          <div className="flex gap-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-              <input
-                type="text"
-                placeholder="Buscar reembolso..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Data Início</label>
+                <input
+                  type="date"
+                  value={filtros.dataInicio}
+                  onChange={(e) => setFiltros({ ...filtros, dataInicio: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Data Fim</label>
+                <input
+                  type="date"
+                  value={filtros.dataFim}
+                  onChange={(e) => setFiltros({ ...filtros, dataFim: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                />
+              </div>
             </div>
-            <button className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium flex items-center gap-2">
-              <Download size={18} />
-              Exportar
-            </button>
-          </div>
-        </div>
 
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" size="sm" onClick={limparFiltros}>
+                Limpar Filtros
+              </Button>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {/* Tabela */}
+      <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50">
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Protocolo
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  ID
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Cliente
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Tipo
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Especialidade
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Data
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Cidade/UF
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Valor
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Valor Solicitado
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Valor Estimado
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Valor Aprovado
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Data
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Ações
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {reembolsos && reembolsos.length > 0 ? (
+            <tbody className="bg-white divide-y divide-gray-200">
+              {reembolsos.length > 0 ? (
                 reembolsos.map((reembolso: any) => (
-                  <tr key={reembolso.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <p className="font-medium text-gray-900">
-                        {reembolso.protocolo || `#REMB-${String(reembolso.id).padStart(4, '0')}`}
-                      </p>
+                  <tr key={reembolso.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      #{reembolso.id}
                     </td>
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="font-medium text-gray-900">{reembolso.cliente?.usuario?.nome || 'N/A'}</p>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">
+                        {reembolso.cliente?.usuario?.nome || 'N/A'}
                       </div>
+                      <div className="text-sm text-gray-500">{reembolso.cliente?.cpf}</div>
                     </td>
-                    <td className="px-6 py-4">
-                      <span className="capitalize">{reembolso.tipo || 'N/A'}</span>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {getTipoLabel(reembolso.tipo)}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {reembolso.especialidade || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {formatDate(reembolso.data_solicitacao)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {reembolso.cliente?.cidade || 'N/A'}/{reembolso.cliente?.estado || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="font-semibold text-gray-900">
-                        {formatCurrency(reembolso.valor_solicitado)}
-                      </p>
-                    </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 whitespace-nowrap">
                       {getStatusBadge(reembolso.status)}
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleVerDetalhes(reembolso)}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
-                          title="Visualizar"
-                        >
-                          <Eye size={16} />
-                        </button>
-                      </div>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {formatCurrency(reembolso.valor_total)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {reembolso.valor_estimado ? formatCurrency(reembolso.valor_estimado) : '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {reembolso.valor_aprovado ? formatCurrency(reembolso.valor_aprovado) : '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatDate(reembolso.data_solicitacao)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setSelectedReembolso(reembolso)
+                          setShowDetalhesModal(true)
+                        }}
+                      >
+                        <Eye size={14} className="mr-1" />
+                        Ver
+                      </Button>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center">
-                    <Receipt size={48} className="mx-auto text-gray-300 mb-3" />
-                    <p className="text-gray-500">Nenhum reembolso encontrado</p>
+                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                    Nenhum reembolso encontrado
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-      </div>
+      </Card>
 
-      {/* Modal Detalhes */}
-      {showDetalhesModal && selectedReembolso && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">Detalhes do Reembolso</h2>
-              <button
-                onClick={() => setShowDetalhesModal(false)}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition"
-              >
-                <X size={20} />
-              </button>
+      {/* Modal de Detalhes */}
+      <Modal
+        isOpen={showDetalhesModal}
+        onClose={() => setShowDetalhesModal(false)}
+        title="Detalhes do Reembolso"
+        size="lg"
+      >
+        {selectedReembolso && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+              <div>
+                <p className="text-sm text-gray-600 mb-1">Status</p>
+                {getStatusBadge(selectedReembolso.status)}
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-gray-600 mb-1">ID</p>
+                <p className="font-mono text-sm font-semibold">#{selectedReembolso.id}</p>
+              </div>
             </div>
 
-            <div className="p-6 space-y-6">
-              {/* Informações do Cliente */}
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <User size={18} className="text-primary" />
-                  Cliente
-                </h3>
-                <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
-                  <p><strong>Nome:</strong> {selectedReembolso.cliente?.usuario?.nome}</p>
-                  <p><strong>CPF:</strong> {selectedReembolso.cliente?.cpf}</p>
-                  <p><strong>Email:</strong> {selectedReembolso.cliente?.usuario?.email}</p>
-                  <p><strong>Telefone:</strong> {selectedReembolso.cliente?.usuario?.telefone || 'Não informado'}</p>
-                  <p>
-                    <strong>Localização:</strong> {selectedReembolso.cliente?.cidade}/{selectedReembolso.cliente?.estado}
-                  </p>
+            <div className="border-t pt-4">
+              <h4 className="font-semibold text-gray-900 mb-3">Cliente</h4>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-gray-600">Nome</p>
+                  <p className="font-medium">{selectedReembolso.cliente?.usuario?.nome}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600">CPF</p>
+                  <p className="font-medium">{selectedReembolso.cliente?.cpf}</p>
                 </div>
               </div>
+            </div>
 
-              {/* Informações do Reembolso */}
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <Receipt size={18} className="text-primary" />
-                  Dados do Reembolso
-                </h3>
-                <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
-                  <p><strong>Protocolo:</strong> {selectedReembolso.protocolo || `#REMB-${String(selectedReembolso.id).padStart(4, '0')}`}</p>
-                  <p><strong>Tipo:</strong> <span className="capitalize">{selectedReembolso.tipo}</span></p>
-                  <p><strong>Especialidade:</strong> {selectedReembolso.especialidade || 'N/A'}</p>
-                  <p><strong>Data da Solicitação:</strong> {formatDate(selectedReembolso.data_solicitacao)}</p>
-                  <p><strong>Valor Solicitado:</strong> {formatCurrency(selectedReembolso.valor_solicitado)}</p>
-                  <p><strong>Status:</strong> {getStatusBadge(selectedReembolso.status)}</p>
-                  {selectedReembolso.descricao && (
-                    <p><strong>Descrição:</strong> {selectedReembolso.descricao}</p>
-                  )}
-                  {selectedReembolso.motivo_rejeicao && (
-                    <p><strong>Motivo da Rejeição:</strong> {selectedReembolso.motivo_rejeicao}</p>
-                  )}
+            <div className="border-t pt-4">
+              <h4 className="font-semibold text-gray-900 mb-3">Valores</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-1">Solicitado</p>
+                  <p className="text-2xl font-bold">{formatCurrency(selectedReembolso.valor_total)}</p>
+                </div>
+                {selectedReembolso.valor_aprovado && (
+                  <div className="bg-green-50 p-4 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-1">Aprovado</p>
+                    <p className="text-2xl font-bold text-green-700">
+                      {formatCurrency(selectedReembolso.valor_aprovado)}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {selectedReembolso.chave_pix && (
+              <div className="border-t pt-4">
+                <h4 className="font-semibold text-gray-900 mb-2">PIX</h4>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="text-sm text-gray-600">Tipo: {selectedReembolso.tipo_pix}</p>
+                  <p className="font-mono font-semibold">{selectedReembolso.chave_pix}</p>
                 </div>
               </div>
+            )}
 
-              {/* Ações */}
-              {selectedReembolso.status === 'pendente' && (
-                <div className="flex gap-3 pt-4 border-t">
-                  <button
-                    onClick={() => setShowModalAprovar(true)}
-                    className="flex-1 px-4 py-3 bg-primary text-white rounded-lg hover:bg-primary-600 transition font-medium flex items-center justify-center gap-2"
-                  >
-                    <CheckCircle size={18} />
-                    Aprovar Reembolso
-                  </button>
-                  <button
-                    onClick={() => setShowModalRejeitar(true)}
-                    className="flex-1 px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition font-medium flex items-center justify-center gap-2"
-                  >
-                    <XCircle size={18} />
-                    Rejeitar
-                  </button>
+            {selectedReembolso.motivo_reprovacao && (
+              <div className="border-t pt-4">
+                <h4 className="font-semibold text-gray-900 mb-2">Motivo da Reprovação</h4>
+                <div className="bg-red-50 p-3 rounded-lg">
+                  <p className="text-sm text-red-800">{selectedReembolso.motivo_reprovacao}</p>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
-
-      {/* Modal Aprovar */}
-      {showModalAprovar && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Confirmar Aprovação</h2>
-            <p className="text-gray-700 mb-6">
-              Deseja realmente aprovar este reembolso no valor de{' '}
-              <strong>{formatCurrency(selectedReembolso?.valor_solicitado || 0)}</strong>?
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowModalAprovar(false)}
-                className="flex-1 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleAprovar}
-                disabled={aprovarMutation.isPending}
-                className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-600 transition font-medium disabled:opacity-50"
-              >
-                {aprovarMutation.isPending ? 'Aprovando...' : 'Confirmar Aprovação'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Rejeitar */}
-      {showModalRejeitar && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Rejeitar Reembolso</h2>
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Motivo da Rejeição *
-              </label>
-              <textarea
-                value={motivoRejeicao}
-                onChange={(e) => setMotivoRejeicao(e.target.value)}
-                rows={4}
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
-                placeholder="Explique o motivo da rejeição..."
-              />
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowModalRejeitar(false)
-                  setMotivoRejeicao('')
-                }}
-                className="flex-1 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleRejeitar}
-                disabled={!motivoRejeicao.trim() || rejeitarMutation.isPending}
-                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition font-medium disabled:opacity-50"
-              >
-                {rejeitarMutation.isPending ? 'Rejeitando...' : 'Confirmar Rejeição'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        )}
+      </Modal>
     </div>
   )
 }

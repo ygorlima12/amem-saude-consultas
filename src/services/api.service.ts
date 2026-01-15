@@ -1632,6 +1632,270 @@ static async updateAgendamento(
     return data as Reembolso
   }
 
+  /**
+ * Upload de documento de reembolso para o Supabase Storage
+ */
+static async uploadDocumentoReembolso(
+  reembolsoId: number,
+  file: File,
+  tipoDocumento: 'nota_fiscal' | 'receita' | 'relatorio'
+) {
+  try {
+    const fileExt = file.name.split('.').pop()
+    const fileName = `${reembolsoId}_${tipoDocumento}_${Date.now()}.${fileExt}`
+    const filePath = `reembolsos/${fileName}`
+
+    // Upload para o storage
+    const { error: uploadError } = await supabase.storage
+      .from('documentos')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      })
+
+    if (uploadError) throw uploadError
+
+    // Obter URL pública
+    const { data: { publicUrl } } = supabase.storage
+      .from('documentos')
+      .getPublicUrl(filePath)
+
+    // Atualizar reembolso com URL do documento
+    const campoUpdate: Record<string, string> = {
+      nota_fiscal: 'url_nota_fiscal',
+      receita: 'url_receita',
+      relatorio: 'url_relatorio',
+    }
+
+    await supabase
+      .from('reembolsos')
+      .update({
+        [campoUpdate[tipoDocumento]]: publicUrl,
+        ultima_atualizacao: new Date().toISOString(),
+      })
+      .eq('id', reembolsoId)
+
+    return publicUrl
+  } catch (error) {
+    console.error('Erro ao fazer upload:', error)
+    throw error
+  }
+}
+
+  /**
+   * Buscar um reembolso específico por ID
+   */
+  static async getReembolsoById(id: number) {
+    const { data, error } = await supabase
+      .from('reembolsos')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (error) throw error
+    return data
+  }
+
+  /**
+   * Atualizar um reembolso
+   */
+  static async updateReembolso(id: number, dados: any) {
+    const { data, error } = await supabase
+      .from('reembolsos')
+      .update({
+        ...dados,
+        ultima_atualizacao: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  }
+
+  /**
+   * Cancelar um reembolso (cliente)
+   */
+  static async cancelarReembolso(id: number) {
+    const { data, error } = await supabase
+      .from('reembolsos')
+      .update({
+        status: 'cancelado',
+        ultima_atualizacao: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  }
+
+  /**
+   * Aprovar reembolso (admin)
+   */
+  static async aprovarReembolso(id: number, valorAprovado: number, observacoes?: string) {
+    const { data, error } = await supabase
+      .from('reembolsos')
+      .update({
+        status: 'aprovado',
+        valor_aprovado: valorAprovado,
+        data_aprovacao: new Date().toISOString(),
+        observacoes: observacoes || null,
+        ultima_atualizacao: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  }
+
+  /**
+   * Reprovar reembolso (admin)
+   */
+  static async reprovarReembolso(id: number, motivoReprovacao: string) {
+    const { data, error } = await supabase
+      .from('reembolsos')
+      .update({
+        status: 'reprovado',
+        motivo_reprovacao: motivoReprovacao,
+        data_reprovacao: new Date().toISOString(),
+        ultima_atualizacao: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  }
+
+  /**
+   * Marcar reembolso como pago (admin)
+   */
+  static async marcarReembolsoPago(id: number, observacoes?: string) {
+    const { data, error } = await supabase
+      .from('reembolsos')
+      .update({
+        status: 'pago',
+        data_pagamento: new Date().toISOString(),
+        observacoes: observacoes || null,
+        ultima_atualizacao: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  }
+
+  /**
+   * Buscar todos os reembolsos (admin) com filtros
+   */
+  static async getAllReembolsos(filters?: {
+    status?: string
+    tipo?: string
+    dataInicio?: string
+    dataFim?: string
+    clienteId?: number
+  }) {
+    let query = supabase
+      .from('reembolsos')
+      .select(`
+        *,
+        cliente:clientes(
+          id,
+          cpf,
+          usuario:usuarios(id, nome, email)
+        )
+      `)
+      .order('data_solicitacao', { ascending: false })
+
+    if (filters?.status) {
+      query = query.eq('status', filters.status)
+    }
+
+    if (filters?.tipo) {
+      query = query.eq('tipo', filters.tipo)
+    }
+
+    if (filters?.dataInicio) {
+      query = query.gte('data_solicitacao', filters.dataInicio)
+    }
+
+    if (filters?.dataFim) {
+      query = query.lte('data_solicitacao', filters.dataFim)
+    }
+
+    if (filters?.clienteId) {
+      query = query.eq('cliente_id', filters.clienteId)
+    }
+
+    const { data, error } = await query
+
+    if (error) throw error
+    return data
+  }
+
+  /**
+   * Buscar reembolsos pendentes (admin)
+   */
+  static async getReembolsosPendentes() {
+    const { data, error } = await supabase
+      .from('reembolsos')
+      .select(`
+        *,
+        cliente:clientes(
+          id,
+          cpf,
+          usuario:usuarios(id, nome, email, telefone)
+        )
+      `)
+      .in('status', ['pendente', 'em_analise'])
+      .order('data_solicitacao', { ascending: true })
+
+    if (error) throw error
+    return data
+  }
+
+  /**
+   * Estatísticas de reembolsos (admin)
+   */
+  static async getReembolsosStats() {
+    const { data: reembolsos, error } = await supabase
+      .from('reembolsos')
+      .select('*')
+
+    if (error) throw error
+
+    const hoje = new Date()
+    const mesAtual = hoje.getMonth()
+    const anoAtual = hoje.getFullYear()
+
+    return {
+      total: reembolsos.length,
+      pendentes: reembolsos.filter(r => r.status === 'pendente' || r.status === 'em_analise').length,
+      aprovados: reembolsos.filter(r => r.status === 'aprovado').length,
+      pagos: reembolsos.filter(r => r.status === 'pago').length,
+      reprovados: reembolsos.filter(r => r.status === 'reprovado').length,
+      valorTotalSolicitado: reembolsos.reduce((sum, r) => sum + (r.valor_solicitado || 0), 0),
+      valorTotalAprovado: reembolsos
+        .filter(r => r.status === 'aprovado' || r.status === 'pago')
+        .reduce((sum, r) => sum + (r.valor_aprovado || 0), 0),
+      valorTotalPago: reembolsos
+        .filter(r => r.status === 'pago')
+        .reduce((sum, r) => sum + (r.valor_aprovado || 0), 0),
+      esteMes: reembolsos.filter(r => {
+        const data = new Date(r.data_solicitacao)
+        return data.getMonth() === mesAtual && data.getFullYear() === anoAtual
+      }).length,
+    }
+  }
+
   // ==================== ESPECIALIDADES ====================
 
   static async getEspecialidades() {

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -8,8 +8,17 @@ import { useAuth } from '@/hooks/useAuth'
 import { ApiService } from '@/services/api.service'
 import { useNavigate } from 'react-router-dom'
 import { formatCurrency } from '@/utils/format'
-import { Copy, CheckCircle, ExternalLink } from 'lucide-react'
+import { Copy, CheckCircle, ExternalLink, Search } from 'lucide-react'
 import type { NovoAgendamento } from '@/types'
+
+interface ViaCEPResponse {
+  cep: string
+  logradouro: string
+  bairro: string
+  localidade: string
+  uf: string
+  erro?: boolean
+}
 
 interface PaymentModalData {
   agendamentoId: number
@@ -25,10 +34,28 @@ export const ClienteSolicitarAgendamento = () => {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
+  const [isClienteLoaded, setIsClienteLoaded] = useState(false)
+
+
+  useEffect(() => {
+    if (cliente && cliente.id) {
+      setIsClienteLoaded(true)
+      console.log('✅ Cliente carregado:', cliente)
+    } else {
+      console.warn('⚠️ Cliente ainda não foi carregado')
+    }
+  }, [cliente])
+
   console.log('=== ClienteSolicitarAgendamento ===')
   console.log('Cliente do useAuth:', cliente)
   console.log('Cliente ID:', cliente?.id)
   console.log('==================================')
+
+  useEffect(() => {
+  if (cliente?.id) {
+    console.log('✅ Cliente carregado:', cliente.id)
+  }
+}, [cliente])
 
   const [formData, setFormData] = useState({
     especialidadeId: '',
@@ -36,6 +63,7 @@ export const ClienteSolicitarAgendamento = () => {
     dataPreferencial: '',
     periodoPreferencial: '',
     observacoes: '',
+    cep: '',
   })
 
   const [showSuccessAlert, setShowSuccessAlert] = useState(false)
@@ -43,6 +71,15 @@ export const ClienteSolicitarAgendamento = () => {
   const [paymentData, setPaymentData] = useState<PaymentModalData | null>(null)
   const [loadingPayment, setLoadingPayment] = useState(false)
   const [pixCopiado, setPixCopiado] = useState(false)
+
+  const [cepInfo, setCepInfo] = useState<ViaCEPResponse | null>(null)
+  const [loadingCep, setLoadingCep] = useState(false)
+  const [cepError, setCepError] = useState('')
+  const [estabelecimentosSugeridos, setEstabelecimentosSugeridos] = useState<any[]>([])
+
+  const [showResumoModal, setShowResumoModal] = useState(false)
+  const [dadosResumo, setDadosResumo] = useState<any>(null)
+
 
   // Buscar especialidades
   const { data: especialidades, isLoading: loadingEspecialidades } = useQuery({
@@ -58,15 +95,77 @@ export const ClienteSolicitarAgendamento = () => {
     enabled: true,
   })
 
-  console.log('Especialidades:', especialidades)
-  console.log('Estabelecimentos:', estabelecimentos)
+  // Buscar Estabelecimentos novo:
+  const buscarCEP = async () => {
+    const cepLimpo = (formData.cep || '').replace(/\D/g, '')
+
+
+    if (cepLimpo.length !== 8) {
+      setCepError('CEP deve conter 8 dígitos')
+      return
+    }
+
+    setLoadingCep(true)
+    setCepError('')
+    setCepInfo(null)
+    setEstabelecimentosSugeridos([])
+
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`)
+      const data: ViaCEPResponse = await response.json()
+
+      if (data.erro) {
+        setCepError('CEP não encontrado')
+        setLoadingCep(false)
+        return
+      }
+
+      setCepInfo(data)
+
+      if (estabelecimentos) { // ← Mude 'todosEstabelecimentos' para 'estabelecimentos'
+        const estabelecimentosProximos = estabelecimentos.filter((est: any) => {
+          const cidadeMatch = est.cidade?.toLowerCase() === data.localidade.toLowerCase()
+          const estadoMatch = est.estado?.toUpperCase() === data.uf.toUpperCase()
+          return cidadeMatch && estadoMatch
+        })
+
+        setEstabelecimentosSugeridos(estabelecimentosProximos)
+
+        if (estabelecimentosProximos.length > 0) {
+          setFormData({
+            ...formData,
+            estabelecimentoId: estabelecimentosProximos[0].id.toString()
+          })
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao buscar CEP:', error)
+      setCepError('Erro ao buscar CEP. Tente novamente.')
+    } finally {
+      setLoadingCep(false)
+    }
+  }
+
+  const handleCepChange = (value: string) => {
+    const apenasNumeros = value.replace(/\D/g, '')
+    const cepFormatado = apenasNumeros.replace(/^(\d{5})(\d{3})$/, '$1-$2')
+    setFormData({ ...formData, cep: cepFormatado })
+
+    if (cepInfo) {
+      setCepInfo(null)
+      setEstabelecimentosSugeridos([])
+    }
+  }
+
+  // console.log('Especialidades:', especialidades)
+  // console.log('Estabelecimentos:', estabelecimentos)
 
   // Mutation para criar agendamento
   const createAgendamentoMutation = useMutation({
     mutationFn: async (dados: NovoAgendamento) => {
       // 1. Criar agendamento
       const agendamento = await ApiService.createAgendamento(dados)
-      
+
       // 2. Gerar pagamento
       const pagamento = await ApiService.createPagamento(
         agendamento.id,
@@ -90,6 +189,7 @@ export const ClienteSolicitarAgendamento = () => {
         dataPreferencial: '',
         periodoPreferencial: '',
         observacoes: '',
+        cep: '',
       })
 
       // Chamar webhook para gerar QR Code
@@ -131,12 +231,12 @@ export const ClienteSolicitarAgendamento = () => {
       }
 
       const data = await response.json()
-      
+
       console.log('Resposta bruta do webhook:', data)
 
       // Extrair dados - o webhook retorna array com objeto vazio que contém json
       let pixData = null
-      
+
       if (Array.isArray(data) && data.length > 0) {
         // Primeira tentativa: data[0].json
         if (data[0].json) {
@@ -156,23 +256,23 @@ export const ClienteSolicitarAgendamento = () => {
         pixData = data
       }
 
-      console.log('Dados do PIX extraídos:', pixData)
-      console.log('encodedImage existe?', !!pixData.encodedImage)
-      console.log('Tamanho do encodedImage:', pixData.encodedImage?.length)
+      // console.log('Dados do PIX extraídos:', pixData)
+      // console.log('encodedImage existe?', !!pixData.encodedImage)
+      // console.log('Tamanho do encodedImage:', pixData.encodedImage?.length)
 
       if (!pixData || !pixData.payload) {
         throw new Error('Resposta do webhook inválida - payload não encontrado')
       }
 
       // Converter encodedImage para data URL
-      const qrCodeImage = pixData.encodedImage 
+      const qrCodeImage = pixData.encodedImage
         ? `data:image/png;base64,${pixData.encodedImage}`
         : null
 
-      console.log('QR Code gerado:', qrCodeImage ? 'SIM ✅' : 'NÃO ❌')
-      if (qrCodeImage) {
-        console.log('Preview URL (100 chars):', qrCodeImage.substring(0, 100))
-      }
+      // console.log('QR Code gerado:', qrCodeImage ? 'SIM ✅' : 'NÃO ❌')
+      // if (qrCodeImage) {
+      //   console.log('Preview URL (100 chars):', qrCodeImage.substring(0, 100))
+      // }
 
       // Atualizar agendamento no banco com dados do PIX
       await ApiService.updateAgendamento(agendamentoId, {
@@ -191,22 +291,22 @@ export const ClienteSolicitarAgendamento = () => {
         pixId: pixData.id || null,
         expirationDate: pixData.expirationDate || null,
       }
-      
-      console.log('=== DADOS DO MODAL ===')
-      console.log('Payment Data:', newPaymentData)
-      console.log('QR Code Image:', newPaymentData.qrCodeImage ? 'PRESENTE ✅' : 'AUSENTE ❌')
-      console.log('=====================')
-      
+
+      // console.log('=== DADOS DO MODAL ===')
+      // console.log('Payment Data:', newPaymentData)
+      // console.log('QR Code Image:', newPaymentData.qrCodeImage ? 'PRESENTE ✅' : 'AUSENTE ❌')
+      // console.log('=====================')
+
       setPaymentData(newPaymentData)
 
-      console.log('Dados de pagamento configurados para modal')
+      // console.log('Dados de pagamento configurados para modal')
 
       // Mostrar modal de pagamento
       setShowPaymentModal(true)
-      console.log('Modal de pagamento aberto:', showPaymentModal)
+      // console.log('Modal de pagamento aberto:', showPaymentModal)
     } catch (error) {
       console.error('Erro ao gerar QR Code:', error)
-      
+
       // Mesmo sem QR Code, mostrar modal
       setPaymentData({
         agendamentoId,
@@ -216,46 +316,68 @@ export const ClienteSolicitarAgendamento = () => {
         pixId: null,
         expirationDate: null,
       })
-      
+
       setShowPaymentModal(true)
     } finally {
       setLoadingPayment(false)
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const confirmarAgendamento = async () => {
+  setShowResumoModal(false)
 
-    console.log('=== SUBMIT AGENDAMENTO ===')
-    console.log('Cliente:', cliente)
-    console.log('Cliente ID:', cliente?.id)
-    console.log('Usuário:', cliente?.usuario)
-
-    if (!cliente || !cliente.id) {
-      console.error('Cliente não encontrado ou sem ID')
-      alert('Erro: Você precisa estar logado como cliente para solicitar um agendamento')
-      return
-    }
-
-    if (!formData.especialidadeId || !formData.estabelecimentoId || !formData.dataPreferencial) {
-      alert('Preencha todos os campos obrigatórios')
-      return
-    }
-
-    console.log('Criando agendamento...')
-
-    const novoAgendamento: NovoAgendamento = {
-      cliente_id: cliente.id,
-      especialidade_id: parseInt(formData.especialidadeId),
-      estabelecimento_id: parseInt(formData.estabelecimentoId),
-      observacoes: formData.observacoes || null,
-      valor_coparticipacao: 25.00,
-    }
-
-    console.log('Dados do agendamento:', novoAgendamento)
-
-    createAgendamentoMutation.mutate(novoAgendamento)
+  const novoAgendamento: NovoAgendamento = {
+    cliente_id: cliente.id,
+    especialidade_id: parseInt(formData.especialidadeId),
+    estabelecimento_id: parseInt(formData.estabelecimentoId),
+    observacoes: formData.observacoes || null,
+    valor_coparticipacao: 25.00,
   }
+
+  createAgendamentoMutation.mutate(novoAgendamento)
+}
+
+  const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault()
+
+  if (!isClienteLoaded || !cliente || !cliente.id) {
+    alert('Erro: Você precisa estar logado como cliente')
+    return
+  }
+
+  if (!formData.especialidadeId || !formData.estabelecimentoId || !formData.dataPreferencial) {
+    alert('Preencha todos os campos obrigatórios')
+    return
+  }
+
+  // Buscar dados para o resumo
+  const especialidadeSelecionada = especialidades?.find(
+    (e) => e.id === parseInt(formData.especialidadeId)
+  )
+  
+  const estabelecimentoSelecionado = estabelecimentos?.find(
+    (e) => e.id === parseInt(formData.estabelecimentoId)
+  )
+
+  // Montar dados do resumo
+  const resumo = {
+    especialidade: especialidadeSelecionada?.nome || 'Não informado',
+    estabelecimento: estabelecimentoSelecionado 
+      ? `${estabelecimentoSelecionado.nome} — ${estabelecimentoSelecionado.cidade}/${estabelecimentoSelecionado.estado}`
+      : 'Não informado',
+    cepDigitado: cepInfo 
+      ? `CEP Digitado: ${cepInfo.cep} - Endereço: ${cepInfo.logradouro}, ${cepInfo.bairro}, ${cepInfo.localidade}/${cepInfo.uf}`
+      : null,
+    coparticipacao: 25.00,
+    dataPreferencial: formData.dataPreferencial,
+    periodoPreferencial: formData.periodoPreferencial,
+  }
+
+  // Salvar resumo e mostrar modal
+  setDadosResumo(resumo)
+  setShowResumoModal(true)
+  console.log('📋 Modal de resumo aberto:', resumo) // DEBUG
+}
 
   const copiarPixCopiaECola = () => {
     if (paymentData?.pixCopiaECola) {
@@ -268,7 +390,7 @@ export const ClienteSolicitarAgendamento = () => {
   return (
     <div>
       <Alert variant="info">
-        <strong>📋 Importante:</strong> O agendamento será confirmado em até 24 horas úteis. Você
+        <strong>📋 Importante:</strong> O agendamento será confirmado em até 7 dias úteis. Você
         receberá uma notificação por e-mail e poderá acompanhar o status em "Meus Agendamentos".
       </Alert>
 
@@ -289,6 +411,8 @@ export const ClienteSolicitarAgendamento = () => {
 
             <form onSubmit={handleSubmit}>
               <div className="space-y-5">
+
+                {/* Especialidade Médica */}
                 <div>
                   <label className="block font-semibold text-text-primary mb-2 text-sm">
                     Especialidade Médica *
@@ -306,8 +430,8 @@ export const ClienteSolicitarAgendamento = () => {
                       {loadingEspecialidades
                         ? 'Carregando...'
                         : especialidades && especialidades.length > 0
-                        ? 'Selecione a especialidade'
-                        : 'Nenhuma especialidade disponível'}
+                          ? 'Selecione a especialidade'
+                          : 'Nenhuma especialidade disponível'}
                     </option>
                     {especialidades?.map((esp) => (
                       <option key={esp.id} value={esp.id}>
@@ -322,40 +446,118 @@ export const ClienteSolicitarAgendamento = () => {
                   )}
                 </div>
 
+                 <div className="mt-3 p-4 bg-yellow-50 border-l-4 border-yellow-500 rounded-lg">
+                      <p className="text-sm text-yellow-800 mb-2">
+                        <strong>Presencial:</strong> nossa equipe fará o agendamento da consulta para você.
+                      </p>
+                      <p className="text-sm text-yellow-800 mb-2">
+                        <strong>Coparticipação:</strong> R$ 25,00 (pagamento antes de iniciarmos o processo).
+                      </p>
+                      
+                    </div>
+
+                {/* CEP e Estabelecimento */}
                 <div>
                   <label className="block font-semibold text-text-primary mb-2 text-sm">
-                    Estabelecimento *
+                    Informe o CEP para localizar a clínica mais próxima*
                   </label>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={formData.cep}
+                      onChange={(e) => handleCepChange(e.target.value)}
+                      placeholder="00000-000"
+                      maxLength={9}
+                      className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-lg text-sm transition-all focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(13,181,166,0.1)]"
+                    />
+                    <Button
+                      type="button"
+                      onClick={buscarCEP}
+                      disabled={loadingCep || (formData.cep || '').replace(/\D/g, '').length !== 8}
+                      className="px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium"
+                    >
+                      {loadingCep ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                      ) : (
+                        <>
+                          <Search size={18} />
+                          Buscar CEP
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  <p className="text-sm text-gray-600 mt-2">
+                    Caso não saiba seu CEP:{' '}
+                    <a
+                      href="https://buscacepinter.correios.com.br/app/endereco/index.php"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline font-medium"
+                    >
+                      consulte aqui
+                    </a>
+                    .
+                  </p>
+
+                  {cepInfo && (
+                    <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <p className="text-sm text-green-800">
+                        <strong>CEP Digitado:</strong> {cepInfo.cep} - <strong>Endereço:</strong> {cepInfo.logradouro}, {cepInfo.bairro}, {cepInfo.localidade}/{cepInfo.uf}
+                      </p>
+                    </div>
+                  )}
+
+                  {cepError && (
+                    <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-sm text-red-800">{cepError}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-text-primary mb-2 text-sm">
+                    Sugestão de Estabelecimento (opcional)
+                  </label>
+
                   <select
-                    required
                     value={formData.estabelecimentoId}
                     onChange={(e) =>
                       setFormData({ ...formData, estabelecimentoId: e.target.value })
                     }
-                    disabled={loadingEstabelecimentos}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-sm transition-all focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(13,181,166,0.1)]"
                   >
-                    <option value="">
-                      {loadingEstabelecimentos
-                        ? 'Carregando...'
-                        : estabelecimentos && estabelecimentos.length > 0
-                        ? 'Selecione o estabelecimento'
-                        : 'Nenhum estabelecimento disponível'}
-                    </option>
-                    {estabelecimentos?.map((est) => (
-                      <option key={est.id} value={est.id}>
-                        {est.nome} - {est.cidade}/{est.estado}
-                      </option>
-                    ))}
+                    {estabelecimentosSugeridos.length === 0 ? (
+                      <option value="">Nenhum estabelecimento encontrado para os filtros informados.</option>
+                    ) : (
+                      <>
+                        <option value="">Selecione um estabelecimento</option>
+                        {estabelecimentosSugeridos.map((est) => (
+                          <option key={est.id} value={est.id}>
+                            {est.nome} - {est.cidade}/{est.estado}
+                          </option>
+                        ))}
+                      </>
+                    )}
                   </select>
-                  {!loadingEstabelecimentos && (!estabelecimentos || estabelecimentos.length === 0) && (
-                    <p className="text-sm text-red-600 mt-1">
-                      ⚠️ Nenhum estabelecimento cadastrado no sistema
-                    </p>
+
+                  {cepInfo && estabelecimentosSugeridos.length === 0 && (
+                    <div className="mt-3 p-4 bg-yellow-50 border-l-4 border-yellow-500 rounded-lg">
+                      <p className="text-sm text-yellow-800 mb-2">
+                        <strong>Mesmo que não haja sugestão de estabelecimentos disponíveis na sua região, nossa equipe buscará uma opção fora do nosso cadastro.</strong>
+                      </p>
+                      <p className="text-sm text-yellow-700">
+                        Não é possível escolher um profissional específico, e a sugestão de estabelecimento não garante o agendamento, pois depende da disponibilidade e dos processos internos.
+                      </p>
+                      <p className="text-sm text-yellow-700 mt-1">
+                        Você pode indicar um estabelecimento de sua preferência no menu "Indicação", ajudando a ampliar nossa rede.
+                      </p>
+                    </div>
                   )}
                 </div>
 
-                
+
                 <div>
                   <label className="block font-semibold text-text-primary mb-2 text-sm">
                     Dia da semana Preferencial *
@@ -369,13 +571,10 @@ export const ClienteSolicitarAgendamento = () => {
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-sm transition-all focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(13,181,166,0.1)]"
                   >
                     <option value="">Selecione</option>
-                    <option value="manha">Segunda</option>
-                    <option value="tarde">Terça</option>
-                    <option value="noite">Quarta</option>
-                    <option value="noite">Quinta</option>
-                    <option value="noite">Sexta</option>
-                    <option value="noite">Sábado</option>
-                    
+                    <option value="Segunda, quarta e sexta">Segunda, quarta e sexta</option>
+                    <option value="Terça e quinta">Terça e quinta</option>
+                    <option value="Todos os dias úteis (Segunda a sexta)">Todos os dias úteis (Segunda a sexta)</option>
+
                   </select>
                 </div>
                 <div>
@@ -391,10 +590,10 @@ export const ClienteSolicitarAgendamento = () => {
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-sm transition-all focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(13,181,166,0.1)]"
                   >
                     <option value="">Selecione</option>
-                    <option value="manha">Início da Manhã (08h às 10h)</option>
-                    <option value="manha">Fim da Manhã (10h às 12h)</option>
-                    <option value="tarde">Início da Tarde (13h às 15h)</option>
-                    <option value="noite">Fim da Tarde (15h às 17h)</option>
+                    <option value="Início da Manhã">Início da Manhã (08h às 10h)</option>
+                    <option value="Fim da Manhã">Fim da Manhã (10h às 12h)</option>
+                    <option value="Início da Tarde">Início da Tarde (13h às 15h)</option>
+                    <option value="Fim da tarde">Fim da Tarde (15h às 17h)</option>
                   </select>
                 </div>
 
@@ -418,21 +617,107 @@ export const ClienteSolicitarAgendamento = () => {
             </form>
           </Card>
         </Card>
+      </div>
 
-        {/* Mapa */}
-        <div className="sticky top-4">
-          <Card>
-            <CardTitle>Localização</CardTitle>
-            <div className="w-full h-[420px] bg-gray-100 rounded-xl flex items-center justify-center text-text-secondary">
-              <div className="text-center">
-                <div className="text-4xl mb-2">🗺️</div>
-                <p>Mapa será exibido aqui</p>
-                <p className="text-xs mt-1">(Google Maps)</p>
+      {/* Modal de Resumo (movido para dentro do return para renderizar) */}
+      <Modal
+        isOpen={showResumoModal}
+        onClose={() => setShowResumoModal(false)}
+        title="Confira o resumo da sua solicitação:"
+        size="md"
+      >
+        {dadosResumo && (
+          <div className="space-y-4">
+            {/* Tipo de consulta */}
+            <div className="flex items-start gap-2">
+              <span className="text-lg">■</span>
+              <div>
+                <span className="font-semibold">Tipo de consulta:</span> Presencial
               </div>
             </div>
-          </Card>
-        </div>
-      </div>
+
+            {/* Especialidade */}
+            <div className="flex items-start gap-2">
+              <span className="text-lg">🩺</span>
+              <div>
+                <span className="font-semibold">Especialidade:</span> {dadosResumo.especialidade}
+              </div>
+            </div>
+
+            {/* Estabelecimento */}
+            <div className="flex items-start gap-2">
+              <span className="text-lg">🏥</span>
+              <div>
+                <span className="font-semibold">Estabelecimento sugerido:</span> {dadosResumo.estabelecimento}
+              </div>
+            </div>
+
+            {/* CEP */}
+            {dadosResumo.cepDigitado && (
+              <div className="flex items-start gap-2">
+                <span className="text-lg">📍</span>
+                <div>
+                  <span className="font-semibold">Endereço de referência:</span> {dadosResumo.cepDigitado}
+                </div>
+              </div>
+            )}
+
+            {/* Data Preferencial */}
+            {dadosResumo.dataPreferencial && (
+              <div className="flex items-start gap-2">
+                <span className="text-lg">📅</span>
+                <div>
+                  <span className="font-semibold">Data preferencial:</span> {dadosResumo.dataPreferencial}
+                </div>
+              </div>
+            )}
+            
+            {/* Período Preferencial */}
+            {dadosResumo.periodoPreferencial && (
+              <div className="flex items-start gap-2">
+                <span className="text-lg">⏰</span>
+                <div>
+                  <span className="font-semibold">Período preferencial:</span> {dadosResumo.periodoPreferencial}
+                </div>
+              </div>
+            )}
+
+            {/* Coparticipação */}
+            <div className="flex items-start gap-2">
+              <span className="text-lg">💰</span>
+              <div>
+                <span className="font-semibold">Coparticipação:</span> {formatCurrency(dadosResumo.coparticipacao)}
+              </div>
+            </div>
+
+            {/* Aviso
+            <div className="mt-6 p-4 bg-gray-50 rounded-lg text-sm text-gray-700">
+              Declaro estar ciente de que, se houver coparticipação maior que R$ 0,00, o pagamento deve ser 
+              realizado antes do início do processo e que posso enviar apenas uma solicitação por vez. Não efetuarei 
+              o pagamento após o vencimento.
+            </div> */}
+
+            {/* Botões */}
+            <div className="flex gap-3 mt-6">
+              <Button
+                variant="outline"
+                onClick={() => setShowResumoModal(false)}
+                fullWidth
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={confirmarAgendamento}
+                disabled={createAgendamentoMutation.isPending}
+                fullWidth
+                className="bg-gray-900 hover:bg-gray-800"
+              >
+                {createAgendamentoMutation.isPending ? 'Enviando...' : 'Sim, Solicitar'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Modal de Pagamento */}
       <Modal
@@ -451,9 +736,8 @@ export const ClienteSolicitarAgendamento = () => {
         ) : (
           <div className="space-y-6">
             {/* Debug - pode remover depois */}
-            {console.log('RENDERIZANDO MODAL - paymentData:', paymentData)}
-            {console.log('RENDERIZANDO MODAL - qrCodeImage:', paymentData?.qrCodeImage)}
-            
+
+
             {/* Valor */}
             <div className="text-center py-4 bg-gray-50 rounded-lg">
               <p className="text-sm text-gray-600 mb-1">Valor da Coparticipação</p>
