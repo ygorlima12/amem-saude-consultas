@@ -35,8 +35,8 @@ export class AuthService {
           .from('usuarios')
           .insert({ 
             nome: authData.user.user_metadata?.nome || credentials.email.split('@')[0], 
-            email: credentials.email,
-            role: 'cliente'
+            email: credentials.email
+            // SEM role!
           })
           .select()
           .single()
@@ -92,18 +92,21 @@ export class AuthService {
       if (authError) throw authError
       if (!authData.user) throw new Error('Erro ao criar usuário')
 
-      console.log('🔵 2. Criando registro (nome + email + role)...')
+      console.log('🔵 2. Criando registro (nome + email)...')
       const { data: userData, error: userError } = await supabase
         .from('usuarios')
         .insert({ 
           nome: dados.nome, 
-          email: dados.email,
-          role: 'cliente'
+          email: dados.email
+          // SEM role!
         })
         .select()
         .single()
 
-      if (userError) throw userError
+      if (userError) {
+        console.error('❌ Erro:', userError)
+        throw userError
+      }
 
       console.log('🔵 3. Atualizando campos...')
       await supabase.from('usuarios').update({
