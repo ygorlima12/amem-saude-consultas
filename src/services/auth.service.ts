@@ -33,13 +33,22 @@ export class AuthService {
       if (userError || !userData) {
         const { data: novoUsuario, error: criarError } = await supabase
           .from('usuarios')
-          .insert({ nome: authData.user.user_metadata?.nome || credentials.email.split('@')[0], email: credentials.email })
+          .insert({ 
+            nome: authData.user.user_metadata?.nome || credentials.email.split('@')[0], 
+            email: credentials.email,
+            role: 'cliente'
+          })
           .select()
           .single()
 
         if (criarError) throw criarError
 
-        await supabase.from('usuarios').update({ auth_user_id: authData.user.id, tipo_usuario: 'cliente', telefone: '', ativo: true }).eq('id', novoUsuario.id)
+        await supabase.from('usuarios').update({ 
+          auth_user_id: authData.user.id, 
+          tipo_usuario: 'cliente', 
+          telefone: '', 
+          ativo: true 
+        }).eq('id', novoUsuario.id)
 
         return { user: authData.user, usuario: novoUsuario as Usuario, cliente: null }
       }
@@ -83,10 +92,14 @@ export class AuthService {
       if (authError) throw authError
       if (!authData.user) throw new Error('Erro ao criar usuário')
 
-      console.log('🔵 2. Criando registro (nome + email)...')
+      console.log('🔵 2. Criando registro (nome + email + role)...')
       const { data: userData, error: userError } = await supabase
         .from('usuarios')
-        .insert({ nome: dados.nome, email: dados.email })
+        .insert({ 
+          nome: dados.nome, 
+          email: dados.email,
+          role: 'cliente'
+        })
         .select()
         .single()
 
