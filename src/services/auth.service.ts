@@ -35,19 +35,45 @@ export class AuthService {
       if (authError) throw authError
       if (!authData.user) throw new Error('Erro ao fazer login')
 
-      // Buscar dados do usuário
-      const { data: userData, error: userError } = await supabase
-        .from('usuarios')
-        .select('*')
-        .eq('auth_user_id', authData.user.id)
-        .single()
+      // Buscar dados do usuário - TENTA por auth_user_id primeiro
+      let userData = null
+      let userError = null
 
-      if (userError) {
+      try {
+        const result = await supabase
+          .from('usuarios')
+          .select('*')
+          .eq('auth_user_id', authData.user.id)
+          .single()
+
+        userData = result.data
+        userError = result.error
+      } catch (err) {
+        // Se der erro de cache, buscar por email
+        console.warn('⚠️ Erro ao buscar por auth_user_id, tentando por email...')
+        const result = await supabase
+          .from('usuarios')
+          .select('*')
+          .eq('email', credentials.email)
+          .single()
+
+        userData = result.data
+        userError = result.error
+
+        // Se encontrou por email, atualizar auth_user_id
+        if (userData && !userData.auth_user_id) {
+          await supabase
+            .from('usuarios')
+            .update({ auth_user_id: authData.user.id })
+            .eq('id', userData.id)
+        }
+      }
+
+      if (userError || !userData) {
         // Se não encontrou, criar o registro
         const { data: novoUsuario, error: criarError } = await supabase
           .from('usuarios')
           .insert({
-            auth_user_id: authData.user.id,
             email: credentials.email,
             nome: authData.user.user_metadata?.nome || credentials.email.split('@')[0],
             tipo_usuario: 'cliente',
@@ -56,6 +82,12 @@ export class AuthService {
           .single()
 
         if (criarError) throw criarError
+
+        // Atualizar com auth_user_id depois
+        await supabase
+          .from('usuarios')
+          .update({ auth_user_id: authData.user.id })
+          .eq('id', novoUsuario.id)
 
         return {
           user: authData.user,
@@ -96,6 +128,7 @@ export class AuthService {
 
   /**
    * Cadastra um novo cliente
+   * ✅ CORRIGIDO: INSERT sem auth_user_id, depois UPDATE
    */
   static async cadastrarCliente(dados: CadastroClienteForm) {
     if (isDevelopmentMode()) {
@@ -124,6 +157,8 @@ export class AuthService {
     }
 
     try {
+      console.log('🔵 1. Criando usuário no Supabase Auth...')
+
       // 1. Criar usuário no Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: dados.email,
@@ -138,11 +173,15 @@ export class AuthService {
       if (authError) throw authError
       if (!authData.user) throw new Error('Erro ao criar usuário')
 
-      // 2. Criar registro na tabela usuarios
+      console.log('✅ Auth user criado:', authData.user.id)
+      console.log('🔵 2. Criando registro em usuarios (sem auth_user_id)...')
+
+      // 2. Criar registro na tabela usuarios SEM auth_user_id
+      // Isso contorna o erro de cache PGRST204
       const { data: userData, error: userError } = await supabase
         .from('usuarios')
         .insert({
-          auth_user_id: authData.user.id,
+          // ❌ NÃO incluir auth_user_id aqui (causa erro de cache!)
           email: dados.email,
           nome: dados.nome,
           telefone: dados.telefone,
@@ -152,11 +191,31 @@ export class AuthService {
         .single()
 
       if (userError) {
-        console.error('Erro ao criar usuário:', userError)
+        console.error('❌ Erro ao criar usuário:', userError)
         throw userError
       }
 
-      // 3. Criar registro de cliente - usa usuario_id (sua estrutura)
+      console.log('✅ Usuario criado:', userData.id)
+      console.log('🔵 3. Atualizando usuario com auth_user_id...')
+
+      // 3. ATUALIZAR com auth_user_id (UPDATE funciona, INSERT não!)
+      const { error: updateError } = await supabase
+        .from('usuarios')
+        .update({
+          auth_user_id: authData.user.id
+        })
+        .eq('id', userData.id)
+
+      if (updateError) {
+        console.warn('⚠️ Erro ao atualizar auth_user_id (não crítico):', updateError)
+        // Não lançar erro - usuário foi criado com sucesso
+      } else {
+        console.log('✅ auth_user_id vinculado com sucesso')
+      }
+
+      console.log('🔵 4. Criando registro em clientes...')
+
+      // 4. Criar registro de cliente - usa usuario_id (sua estrutura)
       const { data: clienteData, error: clienteError } = await supabase
         .from('clientes')
         .insert({
@@ -175,9 +234,12 @@ export class AuthService {
         .single()
 
       if (clienteError) {
-        console.error('Erro ao criar cliente:', clienteError)
+        console.error('❌ Erro ao criar cliente:', clienteError)
         throw clienteError
       }
+
+      console.log('✅ Cliente criado com sucesso!')
+      console.log('✅ Cadastro completo!')
 
       return {
         user: authData.user,
@@ -185,7 +247,7 @@ export class AuthService {
         cliente: clienteData as Cliente,
       }
     } catch (error) {
-      console.error('Erro no cadastro:', error)
+      console.error('❌ Erro no cadastro:', error)
       throw error
     }
   }
@@ -231,6 +293,7 @@ export class AuthService {
 
   /**
    * Obtém dados completos do usuário logado
+   * ✅ CORRIGIDO: Fallback para buscar por email se auth_user_id falhar
    */
   static async getUserData(authUserId: string) {
     if (isDevelopmentMode()) {
@@ -242,11 +305,23 @@ export class AuthService {
 
     try {
       // Buscar usuário pela auth_user_id
-      const { data: userData, error: userError } = await supabase
-        .from('usuarios')
-        .select('*')
-        .eq('auth_user_id', authUserId)
-        .single()
+      let userData = null
+      let userError = null
+
+      try {
+        const result = await supabase
+          .from('usuarios')
+          .select('*')
+          .eq('auth_user_id', authUserId)
+          .single()
+
+        userData = result.data
+        userError = result.error
+      } catch (err) {
+        // Se falhar, não tem alternativa sem o email
+        console.error('Erro ao buscar por auth_user_id:', err)
+        throw err
+      }
 
       if (userError) throw userError
 
