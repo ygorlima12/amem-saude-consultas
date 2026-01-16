@@ -1,16 +1,17 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { Heart } from 'lucide-react'
+import { Heart, Mail, CheckCircle } from 'lucide-react'
 import { isValidCPF, isValidEmail, formatCPF, removeFormatting } from '@/utils/format'
 
 export const CadastroPage = () => {
-  const navigate = useNavigate()
   const { cadastrar } = useAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState(false)
+  const [userEmail, setUserEmail] = useState('')
   const [formData, setFormData] = useState({
     nome: '',
     email: '',
@@ -36,6 +37,11 @@ export const CadastroPage = () => {
     setError('')
 
     // Validações
+    if (!formData.nome.trim()) {
+      setError('Nome é obrigatório')
+      return
+    }
+
     if (!isValidEmail(formData.email)) {
       setError('Email inválido')
       return
@@ -43,6 +49,11 @@ export const CadastroPage = () => {
 
     if (!isValidCPF(formData.cpf)) {
       setError('CPF inválido')
+      return
+    }
+
+    if (!formData.telefone.trim()) {
+      setError('Telefone é obrigatório')
       return
     }
 
@@ -63,14 +74,92 @@ export const CadastroPage = () => {
         ...formData,
         cpf: removeFormatting(formData.cpf),
       })
-      navigate('/cliente')
+      
+      // ✅ Salvar email e mostrar mensagem de sucesso
+      setUserEmail(formData.email)
+      setSuccess(true)
     } catch (err: any) {
-      setError(err.message || 'Erro ao criar conta. Tente novamente.')
+      console.error('Erro no cadastro:', err)
+      
+      // Mensagens de erro mais específicas
+      if (err.message?.includes('already registered') || err.message?.includes('duplicate')) {
+        setError('Este email já está cadastrado. Tente fazer login.')
+      } else if (err.message?.includes('email')) {
+        setError('Erro ao enviar email de confirmação. Tente novamente.')
+      } else {
+        setError(err.message || 'Erro ao criar conta. Tente novamente.')
+      }
     } finally {
       setLoading(false)
     }
   }
 
+  // ✅ Tela de sucesso após cadastro
+  if (success) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary-500 via-primary-600 to-accent-600 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-4">
+              <CheckCircle className="w-12 h-12 text-green-600" />
+            </div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Cadastro Realizado!</h1>
+            <p className="text-gray-600">Verifique seu email para continuar</p>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <Mail className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm text-blue-900 font-medium mb-1">
+                  Email de confirmação enviado
+                </p>
+                <p className="text-sm text-blue-700">
+                  Enviamos um link de confirmação para{' '}
+                  <span className="font-semibold">{userEmail}</span>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3 text-sm text-gray-600 mb-6">
+            <p className="flex items-start gap-2">
+              <span className="text-primary-600 font-bold">1.</span>
+              <span>Abra seu email e procure por uma mensagem da Amém Saúde</span>
+            </p>
+            <p className="flex items-start gap-2">
+              <span className="text-primary-600 font-bold">2.</span>
+              <span>Clique no link de confirmação (verifique a pasta de spam)</span>
+            </p>
+            <p className="flex items-start gap-2">
+              <span className="text-primary-600 font-bold">3.</span>
+              <span>Após confirmar, você será redirecionado para fazer login</span>
+            </p>
+          </div>
+
+          <Link to="/login">
+            <Button fullWidth variant="outline">
+              Ir para Login
+            </Button>
+          </Link>
+
+          <div className="mt-4 text-center">
+            <p className="text-xs text-gray-500">
+              Não recebeu o email?{' '}
+              <button 
+                onClick={() => setSuccess(false)}
+                className="text-primary-600 hover:text-primary-700 font-medium"
+              >
+                Tentar novamente
+              </button>
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Formulário de cadastro
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-500 via-primary-600 to-accent-600 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
@@ -97,6 +186,7 @@ export const CadastroPage = () => {
             value={formData.nome}
             onChange={handleChange}
             required
+            autoComplete="name"
           />
 
           <Input
@@ -107,6 +197,7 @@ export const CadastroPage = () => {
             value={formData.email}
             onChange={handleChange}
             required
+            autoComplete="email"
           />
 
           <Input
@@ -128,6 +219,7 @@ export const CadastroPage = () => {
             value={formData.telefone}
             onChange={handleChange}
             required
+            autoComplete="tel"
           />
 
           <Input
@@ -138,6 +230,7 @@ export const CadastroPage = () => {
             value={formData.senha}
             onChange={handleChange}
             required
+            autoComplete="new-password"
           />
 
           <Input
@@ -148,6 +241,7 @@ export const CadastroPage = () => {
             value={formData.confirmarSenha}
             onChange={handleChange}
             required
+            autoComplete="new-password"
           />
 
           <Button

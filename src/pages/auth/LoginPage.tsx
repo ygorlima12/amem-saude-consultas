@@ -19,10 +19,23 @@ export const LoginPage = () => {
     setLoading(true)
 
     try {
-      await login(email, password)
-      navigate('/cliente')
+      const result = await login(email, password)
+      
+      // ✅ Redirecionar baseado no tipo de usuário
+      if (result.usuario.tipo_usuario === 'admin') {
+        navigate('/admin')
+      } else {
+        navigate('/cliente')
+      }
     } catch (err: any) {
-      setError(err.message || 'Erro ao fazer login. Verifique suas credenciais.')
+      // Mensagens de erro mais amigáveis
+      if (err.message?.includes('Email not confirmed')) {
+        setError('Por favor, confirme seu email antes de fazer login. Verifique sua caixa de entrada.')
+      } else if (err.message?.includes('Invalid login credentials')) {
+        setError('Email ou senha incorretos. Tente novamente.')
+      } else {
+        setError(err.message || 'Erro ao fazer login. Verifique suas credenciais.')
+      }
     } finally {
       setLoading(false)
     }
@@ -53,6 +66,7 @@ export const LoginPage = () => {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
+            autoComplete="email"
           />
 
           <Input
@@ -62,6 +76,7 @@ export const LoginPage = () => {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
+            autoComplete="current-password"
           />
 
           <Button

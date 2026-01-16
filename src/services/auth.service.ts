@@ -35,8 +35,7 @@ export class AuthService {
           .from('usuarios')
           .insert({ 
             nome: authData.user.user_metadata?.nome || credentials.email.split('@')[0], 
-            email: credentials.email,
-            role: 'cliente'
+            email: credentials.email
           })
           .select()
           .single()
@@ -83,27 +82,38 @@ export class AuthService {
 
     try {
       console.log('🔵 1. Criando usuário no Auth...')
+      
+      // ✅ Configurar redirect para produção
+      const redirectUrl = window.location.origin.includes('localhost')
+        ? 'http://localhost:5173/login'
+        : 'https://app.consultas.amemsaude.com/login'
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: dados.email,
         password: dados.senha,
-        options: { data: { nome: dados.nome } }
+        options: { 
+          data: { nome: dados.nome },
+          emailRedirectTo: redirectUrl  // ✅ Redirect correto!
+        }
       })
 
       if (authError) throw authError
       if (!authData.user) throw new Error('Erro ao criar usuário')
 
-      console.log('🔵 2. Criando registro (nome + email + role)...')
+      console.log('🔵 2. Criando registro (nome + email)...')
       const { data: userData, error: userError } = await supabase
         .from('usuarios')
         .insert({ 
           nome: dados.nome, 
-          email: dados.email,
-          role: 'cliente'
+          email: dados.email
         })
         .select()
         .single()
 
-      if (userError) throw userError
+      if (userError) {
+        console.error('❌ Erro:', userError)
+        throw userError
+      }
 
       console.log('🔵 3. Atualizando campos...')
       await supabase.from('usuarios').update({
@@ -188,8 +198,13 @@ export class AuthService {
 
   static async resetPassword(email: string) {
     if (isDevelopmentMode()) return
+    
+    const redirectUrl = window.location.origin.includes('localhost')
+      ? 'http://localhost:5173/reset-password'
+      : 'https://app.consultas.amemsaude.com/reset-password'
+
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: redirectUrl,
     })
     if (error) throw error
   }
