@@ -49,6 +49,8 @@ export class AuthService {
           .insert({
             email: credentials.email,
             nome: authData.user.user_metadata?.nome || credentials.email.split('@')[0],
+            telefone: '',
+            role: 'cliente',  // ✅ Adicionar role obrigatório
           })
           .select()
           .single()
@@ -81,7 +83,7 @@ export class AuthService {
 
       // Buscar cliente por usuario_id
       let clienteData = null
-      if (userData.tipo_usuario === 'cliente') {
+      if (userData.tipo_usuario === 'cliente' || userData.role === 'cliente') {
         const { data, error } = await supabase
           .from('clientes')
           .select('*')
@@ -111,7 +113,7 @@ export class AuthService {
 
   /**
    * Cadastra um novo cliente
-   * ✅ SUPER CORRIGIDO: INSERT apenas com campos básicos
+   * ✅ SUPER CORRIGIDO: Inclui role obrigatório
    */
   static async cadastrarCliente(dados: CadastroClienteForm) {
     if (isDevelopmentMode()) {
@@ -157,17 +159,17 @@ export class AuthService {
       if (!authData.user) throw new Error('Erro ao criar usuário')
 
       console.log('✅ Auth user criado:', authData.user.id)
-      console.log('🔵 2. Criando registro em usuarios (apenas campos básicos)...')
+      console.log('🔵 2. Criando registro em usuarios...')
 
-      // 2. INSERT com APENAS 3 campos básicos (evita erro de cache!)
+      // 2. INSERT com campos obrigatórios
       const { data: userData, error: userError } = await supabase
         .from('usuarios')
         .insert({
           email: dados.email,
           nome: dados.nome,
           telefone: dados.telefone,
-          // ❌ NÃO incluir: auth_user_id, tipo_usuario, ativo
-          // Esses campos têm problema de cache!
+          role: 'cliente',  // ✅ Campo obrigatório!
+          // NÃO incluir: auth_user_id, tipo_usuario, ativo (cache)
         })
         .select()
         .single()
@@ -180,7 +182,7 @@ export class AuthService {
       console.log('✅ Usuario criado:', userData.id)
       console.log('🔵 3. Atualizando campos adicionais...')
 
-      // 3. UPDATE com os campos problemáticos
+      // 3. UPDATE com os campos problemáticos de cache
       const { error: updateError } = await supabase
         .from('usuarios')
         .update({
@@ -297,7 +299,7 @@ export class AuthService {
 
       // Buscar cliente por usuario_id
       let clienteData = null
-      if (userData.tipo_usuario === 'cliente') {
+      if (userData.tipo_usuario === 'cliente' || userData.role === 'cliente') {
         const { data, error } = await supabase
           .from('clientes')
           .select('*')
