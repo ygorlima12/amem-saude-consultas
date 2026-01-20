@@ -207,7 +207,7 @@ export const AdminReembolsos = () => {
           <p className="text-gray-600">Visualização completa e relatórios</p>
         </div>
         <div className="flex gap-2">
-          <Link to="/admin/reembolsos-pendentes">
+          <Link to="/admin/reembolsos/pendentes">
             <Button variant="outline">
               <Clock size={16} className="mr-1" />
               Pendentes

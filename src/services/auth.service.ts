@@ -4,70 +4,95 @@ import type { Usuario, Cliente, LoginForm, CadastroClienteForm } from '@/types'
 
 export class AuthService {
   static async login(credentials: LoginForm) {
-    if (isDevelopmentMode()) {
-      console.log('🔧 Modo de desenvolvimento ativo - Usando dados mock')
-      await new Promise(resolve => setTimeout(resolve, 500))
+  if (isDevelopmentMode()) {
+    console.log('🔧 Modo desenvolvimento')
+    await new Promise(resolve => setTimeout(resolve, 500))
 
-      if (credentials.email === 'demo@admin.com') {
-        return { user: { id: 'mock-admin-uuid-999' } as any, usuario: mockAdmin, cliente: null }
-      } else {
-        return { user: { id: 'mock-uuid-123' } as any, usuario: mockUsuario, cliente: mockCliente }
+    if (credentials.email === 'demo@admin.com') {
+      return { 
+        user: { id: 'mock-admin-uuid' } as any, 
+        usuario: mockAdmin, 
+        cliente: null 
       }
-    }
-
-    try {
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: credentials.email,
-        password: credentials.password,
-      })
-
-      if (authError) throw authError
-      if (!authData.user) throw new Error('Erro ao fazer login')
-
-      const { data: userData, error: userError } = await supabase
-        .from('usuarios')
-        .select('*')
-        .eq('email', credentials.email)
-        .single()
-
-      if (userError || !userData) {
-        const { data: novoUsuario, error: criarError } = await supabase
-          .from('usuarios')
-          .insert({ 
-            nome: authData.user.user_metadata?.nome || credentials.email.split('@')[0], 
-            email: credentials.email
-          })
-          .select()
-          .single()
-
-        if (criarError) throw criarError
-
-        await supabase.from('usuarios').update({ 
-          auth_user_id: authData.user.id, 
-          tipo_usuario: 'cliente', 
-          telefone: '', 
-          ativo: true 
-        }).eq('id', novoUsuario.id)
-
-        return { user: authData.user, usuario: novoUsuario as Usuario, cliente: null }
+    } else {
+      return { 
+        user: { id: 'mock-uuid' } as any, 
+        usuario: mockUsuario, 
+        cliente: mockCliente 
       }
-
-      if (!userData.auth_user_id) {
-        await supabase.from('usuarios').update({ auth_user_id: authData.user.id }).eq('id', userData.id)
-      }
-
-      let clienteData = null
-      if (userData.tipo_usuario === 'cliente') {
-        const { data } = await supabase.from('clientes').select('*').eq('usuario_id', userData.id).maybeSingle()
-        clienteData = data
-      }
-
-      return { user: authData.user, usuario: userData as Usuario, cliente: clienteData as Cliente | null }
-    } catch (error) {
-      console.error('Erro no login:', error)
-      throw error
     }
   }
+
+  try {
+    // 1. Login no Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: credentials.email,
+      password: credentials.password,
+    })
+
+    if (authError) throw authError
+    if (!authData.user) throw new Error('Erro ao fazer login')
+
+    console.log('✅ Auth bem-sucedido')
+
+    // 2. Buscar dados do usuário
+    const { data: userData, error: userError } = await supabase
+      .from('usuarios')
+      .select('*')
+      .eq('email', credentials.email)
+      .single()
+
+    if (userError || !userData) {
+      throw new Error('Usuário não encontrado no banco de dados')
+    }
+
+    console.log('✅ Usuário encontrado:', {
+      id: userData.id,
+      email: userData.email,
+      tipo_usuario: userData.tipo_usuario
+    })
+
+    // 3. Atualizar auth_user_id se necessário
+    if (!userData.auth_user_id) {
+      await supabase
+        .from('usuarios')
+        .update({ auth_user_id: authData.user.id })
+        .eq('id', userData.id)
+    }
+
+    // 4. Buscar cliente SE for tipo cliente
+    let clienteData = null
+    if (userData.tipo_usuario === 'cliente') {
+      console.log('🔵 Buscando dados do cliente...')
+      const { data } = await supabase
+        .from('clientes')
+        .select('*')
+        .eq('usuario_id', userData.id)
+        .maybeSingle()
+      
+      clienteData = data
+      console.log('Cliente encontrado:', clienteData ? 'Sim' : 'Não')
+    } else {
+      console.log('⚠️ Não é cliente, pulando busca de cliente')
+    }
+
+    const resultado = {
+      user: authData.user,
+      usuario: userData as Usuario,
+      cliente: clienteData as Cliente | null
+    }
+
+    console.log('✅ Login completo:', {
+      tipo_usuario: resultado.usuario.tipo_usuario,
+      tem_cliente: !!resultado.cliente
+    })
+
+    return resultado
+  } catch (error) {
+    console.error('❌ Erro no login (AuthService):', error)
+    throw error
+  }
+}
 
   static async cadastrarCliente(dados: CadastroClienteForm) {
     if (isDevelopmentMode()) {
@@ -152,9 +177,46 @@ export class AuthService {
   }
 
   static async logout() {
-    if (isDevelopmentMode()) return
-    const { error } = await supabase.auth.signOut()
-    if (error) throw error
+    if (isDevelopmentMode()) {
+      console.log('🔧 Modo de desenvolvimento - Logout simulado')
+      return
+    }
+
+    try {
+      // Verificar se tem sessão antes de tentar logout
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session) {
+        // Não tem sessão, apenas limpar storage local
+        console.log('⚠️ Sem sessão ativa - limpando storage')
+        localStorage.removeItem('supabase.auth.token')
+        sessionStorage.clear()
+        return
+      }
+      
+      // Tem sessão, fazer logout normal
+      const { error } = await supabase.auth.signOut()
+      
+      if (error && !error.message.includes('session missing')) {
+        throw error
+      }
+      
+      console.log('✅ Logout realizado com sucesso')
+    } catch (error: any) {
+      // Se for erro de sessão ausente, considerar sucesso
+      if (error.message?.includes('session missing') || 
+          error.name === 'AuthSessionMissingError') {
+        console.log('⚠️ Sessão já expirada - limpando dados locais')
+        localStorage.removeItem('supabase.auth.token')
+        sessionStorage.clear()
+        return
+      }
+      
+      console.error('❌ Erro ao fazer logout:', error)
+      // Mesmo com erro, limpar dados locais
+      localStorage.removeItem('supabase.auth.token')
+      sessionStorage.clear()
+    }
   }
 
   static async getSession() {

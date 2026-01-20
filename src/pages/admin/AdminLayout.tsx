@@ -51,7 +51,7 @@ const menuSections = [
   {
     title: 'INDICAÇÕES',
     items: [
-      { path: '/admin/estabelecimentos/indicados', icon: AlertCircle, label: 'Estabelecimentos Indicados' },
+      { path: '/admin/estabelecimentos/indicados', icon: AlertCircle, label: 'Estabelecimentos Indicados', badgeIndicacao: true },
       { path: '/admin/estabelecimentos', icon: MapPin, label: 'Estabelecimentos' },
     ],
   },
@@ -95,10 +95,26 @@ export const AdminLayout = () => {
     refetchInterval: 30000, // Atualiza a cada 30 segundos
   })
 
+  //Busca quantidade de estabelecimentos indicados pendentes
+  const { data: pendentesCountIndicacao } = useQuery({
+    queryKey: ['indicacoes-pendentes-count'],
+    queryFn: async () => {
+      const data = await ApiService.getIndicacoesPendentes()
+      return data?.length || 0
+    },
+    refetchInterval: 30000, // Atualiza a cada 30 segundos
+  })
+
   const handleLogout = async () => {
     if (confirm('Deseja realmente sair?')) {
-      await logout()
-      navigate('/login')
+      try {
+        await logout()
+        // Redireciona automaticamente no useAuth após logout
+      } catch (error) {
+        console.error('Erro ao fazer logout:', error)
+        // Forçar navegação mesmo com erro
+        navigate('/login')
+      }
     }
   }
 
@@ -136,7 +152,7 @@ export const AdminLayout = () => {
                 const showBadge = item.badge && pendentesCount && pendentesCount > 0
                 const badgeLimit = 99
                 const showBadgeReembolso = item.badgeReembolso && pendentesCountReembolso && pendentesCountReembolso > 0
-
+                const showBadgeIndicacao = item.badgeIndicacao && pendentesCountIndicacao && pendentesCountIndicacao > 0
                 return (
                   <Link
                     key={item.path}
@@ -163,6 +179,11 @@ export const AdminLayout = () => {
                     {showBadgeReembolso && (
                       <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
                         {pendentesCountReembolso}
+                      </span>
+                    )}
+                    {showBadgeIndicacao && (
+                      <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
+                        {pendentesCountIndicacao}
                       </span>
                     )}
                   </Link>

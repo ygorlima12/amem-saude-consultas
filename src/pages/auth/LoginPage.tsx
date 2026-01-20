@@ -14,32 +14,42 @@ export const LoginPage = () => {
   const [error, setError] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
+  e.preventDefault()
+  setError('')
+  setLoading(true)
 
-    try {
-      const result = await login(email, password)
-      
-      // ✅ Redirecionar baseado no tipo de usuário
-      if (result.usuario.tipo_usuario === 'admin') {
-        navigate('/admin')
-      } else {
-        navigate('/cliente')
-      }
-    } catch (err: any) {
-      // Mensagens de erro mais amigáveis
-      if (err.message?.includes('Email not confirmed')) {
-        setError('Por favor, confirme seu email antes de fazer login. Verifique sua caixa de entrada.')
-      } else if (err.message?.includes('Invalid login credentials')) {
-        setError('Email ou senha incorretos. Tente novamente.')
-      } else {
-        setError(err.message || 'Erro ao fazer login. Verifique suas credenciais.')
-      }
-    } finally {
-      setLoading(false)
+  try {
+    const result = await login(email, password)
+    
+    console.log('✅ Login bem-sucedido:', result.usuario)
+    console.log('📋 Tipo de usuário:', result.usuario.tipo_usuario)
+    
+    // ✅ REDIRECIONAMENTO CORRETO
+    if (result.usuario.tipo_usuario === 'admin') {
+      console.log('🔵 Redirecionando para /admin')
+      navigate('/admin')
+    } else if (result.usuario.tipo_usuario === 'cliente') {
+      console.log('🟢 Redirecionando para /cliente')
+      navigate('/cliente')
+    } else {
+      console.log('⚠️ Tipo de usuário desconhecido:', result.usuario.tipo_usuario)
+      // Fallback para cliente se tipo não reconhecido
+      navigate('/cliente')
     }
+  } catch (err: any) {
+    console.error('❌ Erro no login:', err)
+    
+    if (err.message?.includes('Email not confirmed')) {
+      setError('Por favor, confirme seu email antes de fazer login.')
+    } else if (err.message?.includes('Invalid login credentials')) {
+      setError('Email ou senha incorretos.')
+    } else {
+      setError(err.message || 'Erro ao fazer login.')
+    }
+  } finally {
+    setLoading(false)
   }
+}
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-500 via-primary-600 to-accent-600 flex items-center justify-center p-4">

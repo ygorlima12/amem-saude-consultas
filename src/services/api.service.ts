@@ -1232,19 +1232,12 @@ static async updateAgendamento(
     try {
       const { data, error } = await supabase
         .from('indicacoes')
-        .select(`
-          *,
-          cliente:clientes(
-            id,
-            cpf,
-            usuario:usuarios(id, nome, email, telefone)
-          )
-        `)
+        .select('*')
         .eq('status', 'pendente')
         .order('data_indicacao', { ascending: false })
 
       if (error) throw error
-      return data
+      return data || []
     } catch (error) {
       console.error('Erro ao buscar indicações pendentes:', error)
       throw error
@@ -1259,14 +1252,7 @@ static async updateAgendamento(
     try {
       let query = supabase
         .from('indicacoes')
-        .select(`
-          *,
-          cliente:clientes(
-            id,
-            cpf,
-            usuario:usuarios(id, nome, email, telefone)
-          )
-        `)
+        .select('*')
 
       if (filtros?.status) {
         query = query.eq('status', filtros.status)
@@ -1283,7 +1269,7 @@ static async updateAgendamento(
       const { data, error } = await query.order('data_indicacao', { ascending: false })
 
       if (error) throw error
-      return data
+      return data || []
     } catch (error) {
       console.error('Erro ao buscar indicações:', error)
       throw error
@@ -1364,16 +1350,10 @@ static async updateAgendamento(
     observacoes_admin?: string
   ) {
     try {
-      // 1. Buscar dados da indicação
+      // 1. Buscar dados da indicação (SEM JOINS COMPLEXOS)
       const { data: indicacao, error: fetchError } = await supabase
         .from('indicacoes')
-        .select(`
-          *,
-          cliente:clientes(
-            id,
-            usuario:usuarios(id, nome)
-          )
-        `)
+        .select('*')
         .eq('id', id)
         .single()
 
@@ -1385,43 +1365,16 @@ static async updateAgendamento(
         .update({
           status: 'aprovado',
           data_aprovacao: new Date().toISOString(),
-          observacoes_admin,
-        })
+          observacoes_aprovacao: observacoes_admin,
+        } as any)
         .eq('id', id)
 
       if (updateError) throw updateError
 
-      // 3. Criar estabelecimento
-      const { data: estabelecimento, error: estabelecimentoError } = await supabase
-        .from('estabelecimentos')
-        .insert({
-          nome: indicacao.nome_estabelecimento,
-          endereco: indicacao.endereco,
-          cidade: indicacao.cidade,
-          estado: indicacao.estado,
-          telefone: indicacao.telefone,
-          email: indicacao.email,
-          tipo: indicacao.tipo_estabelecimento || 'Clínica',
-          observacoes: `Indicado por: ${indicacao.cliente?.usuario?.nome || 'Cliente'}`,
-          ativo: true,
-        })
-        .select()
-        .single()
+      // 3. O estabelecimento é criado AUTOMATICAMENTE pelo TRIGGER!
+      console.log('✅ Indicação aprovada! Trigger criará o estabelecimento.')
 
-      if (estabelecimentoError) throw estabelecimentoError
-
-      // 4. Notificar cliente
-      if (indicacao.cliente?.usuario?.id) {
-        await this.createNotificacao({
-          usuario_id: indicacao.cliente.usuario.id,
-          titulo: 'Indicação Aprovada',
-          mensagem: `Sua indicação de estabelecimento "${indicacao.nome_estabelecimento}" foi aprovada e cadastrada no sistema!`,
-          tipo: 'sucesso',
-          link: '/cliente/indicacoes',
-        })
-      }
-
-      return { indicacao, estabelecimento }
+      return { indicacao }
     } catch (error) {
       console.error('Erro ao aprovar indicação:', error)
       throw error
@@ -1435,13 +1388,10 @@ static async updateAgendamento(
     motivo_reprovacao: string
   ) {
     try {
-      // 1. Buscar dados da indicação
+      // 1. Buscar dados da indicação (SEM JOINS COMPLEXOS)
       const { data: indicacao, error: fetchError } = await supabase
         .from('indicacoes')
-        .select(`
-          *,
-          cliente:clientes(usuario:usuarios(id))
-        `)
+        .select('*')
         .eq('id', id)
         .single()
 
@@ -1454,23 +1404,14 @@ static async updateAgendamento(
           status: 'reprovado',
           data_reprovacao: new Date().toISOString(),
           motivo_reprovacao,
-        })
+        } as any)
         .eq('id', id)
         .select()
         .single()
 
       if (error) throw error
 
-      // 3. Notificar cliente
-      if (indicacao.cliente?.usuario?.id) {
-        await this.createNotificacao({
-          usuario_id: indicacao.cliente.usuario.id,
-          titulo: 'Indicação Reprovada',
-          mensagem: `Sua indicação de estabelecimento foi reprovada. Motivo: ${motivo_reprovacao}`,
-          tipo: 'erro',
-          link: '/cliente/indicacoes',
-        })
-      }
+      console.log('✅ Indicação reprovada com sucesso')
 
       return data
     } catch (error) {
@@ -2194,6 +2135,200 @@ static async uploadDocumentoReembolso(
       receitaMes,
     }
   }
+
+  // ============================================
+// SUBSTITUIR TODOS OS MÉTODOS DE INDICAÇÕES
+// Cole isso no api.service.ts substituindo os métodos antigos
+// ============================================
+
+/**
+ * Criar indicação de estabelecimento (cliente)
+ */
+static async criarIndicacao(dados: {
+  cliente_id: number
+  nome_estabelecimento: string
+  telefone: string
+  email?: string
+  endereco: string
+  cidade: string
+  estado: string
+  especialidades: string
+  observacoes?: string
+}) {
+  const { data, error } = await supabase
+    .from('indicacoes')
+    .insert({
+      cliente_id: dados.cliente_id,
+      nome_estabelecimento: dados.nome_estabelecimento,
+      telefone: dados.telefone,
+      email: dados.email || null,
+      endereco: dados.endereco,
+      cidade: dados.cidade,
+      estado: dados.estado,
+      especialidades: dados.especialidades,
+      observacoes: dados.observacoes || null,
+      status: 'pendente',
+      data_indicacao: new Date().toISOString(),
+    })
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+/**
+ * Buscar indicações do cliente
+ */
+static async getIndicacoesCliente(clienteId: number) {
+  const { data, error } = await supabase
+    .from('indicacoes')
+    .select('*')
+    .eq('cliente_id', clienteId)
+    .order('data_indicacao', { ascending: false })
+
+  if (error) throw error
+  return data
+}
+
+/**
+ * Buscar indicações pendentes (admin)
+ * VERSÃO SIMPLIFICADA - sem joins complexos
+ */
+static async getIndicacoesPendentes() {
+  const { data, error } = await supabase
+    .from('indicacoes')
+    .select('*')
+    .eq('status', 'pendente')
+    .order('data_indicacao', { ascending: false })
+
+  if (error) throw error
+  
+  // Buscar dados do cliente separadamente se necessário
+  if (data && data.length > 0) {
+    const clienteIds = [...new Set(data.map(i => i.cliente_id))]
+    
+    const { data: clientes } = await supabase
+      .from('clientes')
+      .select('id, cpf, usuario_id')
+      .in('id', clienteIds)
+    
+    if (clientes) {
+      const usuarioIds = [...new Set(clientes.map(c => c.usuario_id))]
+      
+      const { data: usuarios } = await supabase
+        .from('usuarios')
+        .select('id, nome, email, telefone')
+        .in('id', usuarioIds)
+      
+      // Combinar dados
+      const indicacoesComCliente = data.map(indicacao => {
+        const cliente = clientes.find(c => c.id === indicacao.cliente_id)
+        const usuario = usuarios?.find(u => u.id === cliente?.usuario_id)
+        
+        return {
+          ...indicacao,
+          cliente: cliente ? {
+            ...cliente,
+            usuario: usuario
+          } : null
+        }
+      })
+      
+      return indicacoesComCliente
+    }
+  }
+  
+  return data
+}
+
+/**
+ * Buscar todas indicações com filtros (admin)
+ */
+static async getAllIndicacoes(filtros?: {
+  status?: string
+  cidade?: string
+  estado?: string
+}) {
+  let query = supabase
+    .from('indicacoes')
+    .select('*')
+
+  if (filtros?.status) {
+    query = query.eq('status', filtros.status)
+  }
+  if (filtros?.cidade) {
+    query = query.ilike('cidade', `%${filtros.cidade}%`)
+  }
+  if (filtros?.estado) {
+    query = query.eq('estado', filtros.estado)
+  }
+
+  query = query.order('data_indicacao', { ascending: false })
+
+  const { data, error } = await query
+
+  if (error) throw error
+  return data
+}
+
+/**
+ * Aprovar indicação (admin)
+ */
+static async aprovarIndicacao(id: number, observacoes?: string) {
+  const { data, error } = await supabase
+    .from('indicacoes')
+    .update({
+      status: 'aprovado',
+      data_aprovacao: new Date().toISOString(),
+      observacoes_aprovacao: observacoes || null,
+    } as any)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+/**
+ * Reprovar indicação (admin)
+ */
+static async reprovarIndicacao(id: number, motivo: string) {
+  const { data, error } = await supabase
+    .from('indicacoes')
+    .update({
+      status: 'reprovado',
+      data_reprovacao: new Date().toISOString(),
+      motivo_reprovacao: motivo,
+    } as any)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+/**
+ * Estatísticas de indicações (admin)
+ */
+static async getIndicacoesStats() {
+  const { data, error } = await supabase
+    .from('indicacoes')
+    .select('id, status')
+
+  if (error) throw error
+
+  const stats = {
+    total: data.length,
+    pendentes: data.filter(i => i.status === 'pendente').length,
+    aprovadas: data.filter(i => i.status === 'aprovado').length,
+    reprovadas: data.filter(i => i.status === 'reprovado').length,
+  }
+
+  return stats
+}
 
   // ==================== VIACEPCEP API ====================
 

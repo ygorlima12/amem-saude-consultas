@@ -50,38 +50,33 @@ export const AdminEstabelecimentos = () => {
   const saveMutation = useMutation({
     mutationFn: async (data: any) => {
       if (selectedEstabelecimento) {
-        // Atualizar
-        const { error } = await ApiService.supabase
-          .from('estabelecimentos')
-          .update(data)
-          .eq('id', selectedEstabelecimento.id)
-        
-        if (error) throw error
+        return await ApiService.updateEstabelecimento(selectedEstabelecimento.id, data)
       } else {
-        // Criar novo (precisa criar usuário primeiro)
-        // Por enquanto apenas placeholder
-        console.log('Criar novo Estabelecimento:', data)
+        return await ApiService.createEstabelecimento(data)
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['estabelecimentos'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-estabelecimentos'] })
       setShowModal(false)
       resetForm()
+      alert(selectedEstabelecimento ? '✅ Estabelecimento atualizado!' : '✅ Estabelecimento criado!')
+    },
+    onError: (error: any) => {
+      console.error('Erro ao salvar:', error)
+      alert('Erro ao salvar estabelecimento. Tente novamente.')
     },
   })
 
   // Mutation para desativar estabelecimento
   const desativarMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const { error } = await ApiService.supabase
-        .from('estabelecimentos')
-        .update({ ativo: false })
-        .eq('id', id)
-      
-      if (error) throw error
-    },
+    mutationFn: (id: number) => ApiService.desativarEstabelecimento(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['estabelecimentos'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-estabelecimentos'] })
+      alert('✅ Estabelecimento desativado!')
+    },
+    onError: (error: any) => {
+      console.error('Erro ao desativar:', error)
+      alert('Erro ao desativar estabelecimento.')
     },
   })
 
@@ -269,7 +264,26 @@ export const AdminEstabelecimentos = () => {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {estabelecimentos && estabelecimentos.length > 0 ? (
-                estabelecimentos.map((estabelecimento: any) => (
+                estabelecimentos
+                  .filter((est: any) => {
+                    // Filtro de status
+                    if (filtroStatus === 'ativos' && !est.ativo) return false
+                    if (filtroStatus === 'inativos' && est.ativo) return false
+                    
+                    // Filtro de busca
+                    if (searchTerm) {
+                      const termo = searchTerm.toLowerCase()
+                      return (
+                        est.nome?.toLowerCase().includes(termo) ||
+                        est.cnpj?.toLowerCase().includes(termo) ||
+                        est.email?.toLowerCase().includes(termo) ||
+                        est.cidade?.toLowerCase().includes(termo)
+                      )
+                    }
+                    
+                    return true
+                  })
+                  .map((estabelecimento: any) => (
                   <tr key={estabelecimento.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">

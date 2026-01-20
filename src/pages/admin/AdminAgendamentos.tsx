@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
-import { Calendar, MapPin, User, DollarSign, CheckCircle, Clock, XCircle } from 'lucide-react'
+import { Calendar, MapPin, User, DollarSign, CheckCircle, Clock, XCircle, Plus } from 'lucide-react'
 import { formatDate, formatCurrency, getStatusLabel } from '@/utils/format'
 import { ApiService } from '@/services/api.service'
 
@@ -85,31 +85,51 @@ export const AdminAgendamentos = () => {
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-blue-50 border-blue-200">
-          <div className="text-center">
+        <Card padding="md">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center">
+              <Plus size={24} className="text-primary-600" />
+            </div>
+            <div>
             <p className="text-sm text-gray-600 mb-1">Hoje</p>
-            <p className="text-3xl font-bold text-blue-600">{stats.hoje}</p>
+            <p className="text-3xl font-bold">{stats.hoje}</p>
+          </div>
           </div>
         </Card>
 
-        <Card className="bg-yellow-50 border-yellow-200">
-          <div className="text-center">
+        <Card padding="md">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+              <Clock className="text-yellow-600" size={24} />
+            </div>
+            <div>
             <p className="text-sm text-gray-600 mb-1">Pendentes</p>
-            <p className="text-3xl font-bold text-yellow-600">{stats.pendentes}</p>
+            <p className="text-3xl font-bold">{stats.pendentes}</p>
+          </div>
           </div>
         </Card>
 
-        <Card className="bg-green-50 border-green-200">
-          <div className="text-center">
+        <Card padding="md">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+              <CheckCircle className="text-green-600" size={24} />
+            </div>
+            <div>
             <p className="text-sm text-gray-600 mb-1">Confirmados</p>
-            <p className="text-3xl font-bold text-green-600">{stats.confirmados}</p>
+            <p className="text-3xl font-bold">{stats.confirmados}</p>
+          </div>
           </div>
         </Card>
 
-        <Card className="bg-purple-50 border-purple-200">
-          <div className="text-center">
+        <Card padding="md">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+              <Calendar className="text-yellow-600" size={24} />
+            </div>
+            <div>
             <p className="text-sm text-gray-600 mb-1">Este Mês</p>
-            <p className="text-3xl font-bold text-purple-600">{stats.esteMes}</p>
+            <p className="text-3xl font-bold">{stats.esteMes}</p>
+            </div>
           </div>
         </Card>
       </div>

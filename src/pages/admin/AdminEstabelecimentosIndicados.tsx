@@ -58,68 +58,21 @@ export const AdminEstabelecimentosIndicados = () => {
   // Mutation para aprovar indicação
   const aprovarMutation = useMutation({
     mutationFn: async ({ id, observacoes }: { id: number; observacoes: string }) => {
-      // 1. Atualizar status da indicação
-      const { data: indicacao, error: indicacaoError } = await ApiService.supabase
-        .from('indicacoes')
-        .update({
-          status: 'aprovado',
-          data_aprovacao: new Date().toISOString(),
-          observacoes_admin: observacoes,
-        })
-        .eq('id', id)
-        .select(`
-          *,
-          cliente:clientes(usuario:usuarios(id, nome))
-        `)
-        .single()
-
-      if (indicacaoError) throw indicacaoError
-
-      // 2. Criar o estabelecimento
-      const { data: estabelecimento, error: estabelecimentoError } = await ApiService.supabase
-        .from('estabelecimentos')
-        .insert({
-          nome: indicacao.nome_estabelecimento,
-          endereco: indicacao.endereco,
-          cidade: indicacao.cidade,
-          estado: indicacao.estado,
-          telefone: indicacao.telefone,
-          email: indicacao.email,
-          tipo: indicacao.tipo_estabelecimento || 'Clínica',
-          observacoes: `Indicado por: ${indicacao.cliente?.usuario?.nome || 'Cliente'}`,
-          ativo: true,
-        })
-        .select()
-        .single()
-
-      if (estabelecimentoError) throw estabelecimentoError
-
-      // 3. Criar notificação para o cliente
-      const { data: adminUser } = await ApiService.supabase
-        .from('usuarios')
-        .select('id')
-        .eq('id', indicacao.cliente_id)
-        .single()
-
-      if (adminUser) {
-        await ApiService.createNotificacao({
-          usuario_id: adminUser.id,
-          titulo: 'Indicação Aprovada',
-          mensagem: `Sua indicação de estabelecimento "${indicacao.nome_estabelecimento}" foi aprovada e cadastrada no sistema!`,
-          tipo: 'sucesso',
-          link: '/cliente/indicacoes',
-        })
-      }
-
-      return { indicacao, estabelecimento }
+      // ✅ Usar o método do ApiService (que já está corrigido)
+      return await ApiService.aprovarIndicacao(id, observacoes)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['indicacoes-pendentes'] })
-      queryClient.invalidateQueries({ queryKey: ['estabelecimentos'] })
+      queryClient.invalidateQueries({ queryKey: ['indicacoes-stats'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-estabelecimentos'] })
       setShowAprovarModal(false)
       setSelectedIndicacao(null)
       setObservacoesAprovacao('')
-      alert('✅ Indicação aprovada e estabelecimento cadastrado com sucesso!')
+      alert('✅ Indicação aprovada! O estabelecimento foi criado automaticamente.')
+    },
+    onError: (error: any) => {
+      console.error('Erro ao aprovar:', error)
+      alert('Erro ao aprovar indicação. Tente novamente.')
     },
   })
 
